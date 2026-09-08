@@ -194,7 +194,6 @@
 
         .divider { height: 1px; background: linear-gradient(to right, var(--border), transparent); margin: 1.8rem 0 1.5rem; }
 
-        /* 谷子类型卡片 */
         .grain-types-container {
             display: flex;
             flex-wrap: wrap;
@@ -272,7 +271,6 @@
         }
         .add-type-btn:hover { border-color: var(--primary-light); background: #f0f5fc; }
 
-        /* 包装总克重卡片 */
         .packaging-total-card {
             background: #fffbf5;
             border: 1.5px solid #f0e0cc;
@@ -302,7 +300,6 @@
         .packaging-total-card input:focus { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(221, 107, 32, 0.1); }
         .packaging-total-card .unit { font-size: 0.8rem; color: var(--text-light); }
 
-        /* 表格 */
         .table-wrapper {
             overflow-x: auto;
             margin: 1rem 0;
@@ -424,7 +421,6 @@
         }
         .add-member-btn:hover { border-color: var(--primary-light); background: #f0f5fc; }
 
-        /* 汇总 */
         .summary-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -464,6 +460,28 @@
         }
         .hidden { display: none; }
 
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--green);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            box-shadow: 0 8px 24px rgba(47, 133, 90, 0.3);
+            z-index: 9999;
+            animation: slideIn 0.3s ease, fadeOut 0.5s ease 3s forwards;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+            to { opacity: 0; transform: translateY(-20px); }
+        }
+
         @media (max-width: 700px) {
             .app-container { padding: 1.2rem 1rem; }
             .summary-grid { padding: 1rem; grid-template-columns: 1fr 1fr; }
@@ -478,7 +496,6 @@
             <span class="icon">🌍</span> 国际计算器
         </h1>
 
-        <!-- 费用设置 -->
         <div class="section-title">💰 总费用设置 <span class="section-badge">只需国际运费总价</span></div>
         <div class="input-group">
             <div class="input-field">
@@ -491,12 +508,10 @@
             </div>
         </div>
 
-        <!-- 谷子类型库 -->
         <div class="section-title">📋 谷子类型库 <span class="tag-purple">点击名称可修改</span> <span class="tag-blue">同类型只需测一次克重</span></div>
         <div id="grainTypesContainer" class="grain-types-container"></div>
         <button id="addGrainTypeBtn" class="add-type-btn">＋ 添加谷子类型</button>
 
-        <!-- 包装总克重 -->
         <div class="section-title" style="margin-top: 1rem;">📦 包装总克重 <span class="tag-orange">所有包装合计</span></div>
         <div class="packaging-total-card">
             <span class="label">总克重</span>
@@ -504,7 +519,6 @@
             <span class="unit">g</span>
         </div>
 
-        <!-- 成员表格 -->
         <div class="section-title" style="margin-top: 1.5rem;">👥 成员明细 <span class="tag-blue">谷子类型×数量</span> <span class="tag-orange">包装克重平均分配</span></div>
         <div class="table-wrapper">
             <table id="memberTable">
@@ -544,8 +558,6 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js">
-    </script>
     <script>
         (function() {
             // ---------- 初始谷子类型 ----------
@@ -801,6 +813,14 @@
             }
             function hideError() { errorBox.classList.add('hidden'); }
 
+            function showToast(msg) {
+                const toast = document.createElement('div');
+                toast.className = 'toast';
+                toast.textContent = msg;
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3500);
+            }
+
             // ---------- 计算核心 ----------
             function calculateAndDisplay() {
                 hideError();
@@ -897,146 +917,181 @@
                 clearAmounts();
             }
 
-            // ---------- 导出Excel（带公式） ----------
+            // ---------- 导出Excel（带公式） - 修复版 ----------
             function exportToExcel() {
-                // 先计算一次确保数据最新
-                calculateAndDisplay();
+                try {
+                    // 先计算一次确保数据最新
+                    calculateAndDisplay();
 
-                const symbol = currencySymbolInput.value.trim() || '€';
-                const shippingTotal = parseFloat(totalShippingInput.value) || 0;
-                const totalPackagingGrams = parseFloat(totalPackagingGramsInput.value) || 0;
-                const perMemberPackaging = getPerMemberPackagingGrams();
-                const memberCount = members.length;
+                    const shippingTotal = parseFloat(totalShippingInput.value) || 0;
+                    const totalPackagingGrams = parseFloat(totalPackagingGramsInput.value) || 0;
+                    const perMemberPackaging = getPerMemberPackagingGrams();
+                    const memberCount = members.length;
 
-                // 创建工作簿
-                const wb = XLSX.utils.book_new();
+                    // 构建Excel XML（使用正确的XML命名空间）
+                    let xml = '<?xml version="1.0"?>\n';
+                    xml += '<?mso-application progid="Excel.Sheet"?>\n';
+                    xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"\n';
+                    xml += ' xmlns:o="urn:schemas-microsoft-com:office:office"\n';
+                    xml += ' xmlns:x="urn:schemas-microsoft-com:office:excel"\n';
+                    xml += ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"\n';
+                    xml += ' xmlns:html="http://www.w3.org/TR/REC-html40">\n';
 
-                // === Sheet 1: 谷子类型库 ===
-                const grainTypeData = [
-                    ['谷子类型名称', '单位克重(g)']
-                ];
-                grainTypes.forEach(type => {
-                    grainTypeData.push([type.name, type.weightPerUnit]);
-                });
-                const grainTypeWS = XLSX.utils.aoa_to_sheet(grainTypeData);
-                // 设置列宽
-                grainTypeWS['!cols'] = [{ wch: 20 }, { wch: 15 }];
-                XLSX.utils.book_append_sheet(wb, grainTypeWS, '谷子类型库');
+                    // 样式
+                    xml += '<Styles>\n';
+                    xml += '  <Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Center"/><Font ss:FontName="微软雅黑" ss:Size="11"/></Style>\n';
+                    xml += '  <Style ss:ID="Header"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="微软雅黑"/><Interior ss:Color="#1E3A5F" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>\n';
+                    xml += '  <Style ss:ID="Data"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>\n';
+                    xml += '  <Style ss:ID="Amount"><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/></Style>\n';
+                    xml += '  <Style ss:ID="Grams"><NumberFormat ss:Format="0.0"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/></Style>\n';
+                    xml += '</Styles>\n';
 
-                // === Sheet 2: 分摊明细（带公式） ===
-                // 构建表头
-                const headers = ['姓名'];
-                // 为每位成员添加谷子列（动态）
-                const maxGrainItems = Math.max(1, ...members.map(m => m.grainItems.length));
-                for (let i = 0; i < maxGrainItems; i++) {
-                    headers.push(`谷子类型${i + 1}`, `数量${i + 1}`, `克重${i + 1}`);
-                }
-                headers.push('谷子总克重(g)', '包装克重(g)', '总克重(g)', '应摊运费');
+                    // === Sheet 1: 谷子类型库 ===
+                    xml += '<Worksheet ss:Name="谷子类型库">\n';
+                    xml += '<Table ss:DefaultRowHeight="22">\n';
+                    xml += '<Column ss:Width="150"/><Column ss:Width="100"/>\n';
+                    xml += '<Row ss:Height="25">';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">谷子类型名称</Data></Cell>';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">单位克重(g)</Data></Cell>';
+                    xml += '</Row>\n';
 
-                const detailData = [headers];
+                    grainTypes.forEach(type => {
+                        xml += '<Row>';
+                        xml += `<Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(type.name)}</Data></Cell>`;
+                        xml += `<Cell ss:StyleID="Data"><Data ss:Type="Number">${type.weightPerUnit}</Data></Cell>`;
+                        xml += '</Row>\n';
+                    });
+                    xml += '</Table>\n</Worksheet>\n';
 
-                // 为谷子类型库建立一个sheet用于查找（简化：直接在公式中使用常量数组，但为了可维护，使用命名区域或者直接写死值）
-                // 实际上，为了公式可编辑，我们使用VLOOKUP到谷子类型库sheet
-                // 谷子类型库sheet的行：A=名称, B=克重
+                    // === Sheet 2: 包装总克重 ===
+                    xml += '<Worksheet ss:Name="包装总克重">\n';
+                    xml += '<Table ss:DefaultRowHeight="22">\n';
+                    xml += '<Column ss:Width="150"/><Column ss:Width="100"/>\n';
+                    xml += '<Row ss:Height="25">';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">项目</Data></Cell>';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">数值</Data></Cell>';
+                    xml += '</Row>\n';
+                    xml += '<Row>';
+                    xml += '<Cell ss:StyleID="Data"><Data ss:Type="String">包装总克重(g)</Data></Cell>';
+                    xml += `<Cell ss:StyleID="Data"><Data ss:Type="Number">${totalPackagingGrams}</Data></Cell>`;
+                    xml += '</Row>\n';
+                    xml += '</Table>\n</Worksheet>\n';
 
-                // 构建每一行
-                members.forEach((member, mIdx) => {
-                    const row = [member.name];
-                    const rowNum = mIdx + 2; // 数据行从第2行开始（第1行是表头）
+                    // === Sheet 3: 分摊明细 ===
+                    xml += '<Worksheet ss:Name="分摊明细">\n';
+                    xml += '<Table ss:DefaultRowHeight="22">\n';
 
-                    member.grainItems.forEach((item, gIdx) => {
-                        // 谷子类型列（使用VLOOKUP公式根据名称查找克重，但这里放类型名称，克重列用公式）
-                        const typeName = grainTypes.find(t => t.id === item.typeId)?.name || '';
-                        row.push(typeName);
-                        row.push(item.quantity);
+                    const maxGrainItems = Math.max(1, ...members.map(m => m.grainItems.length));
+                    const totalCols = 1 + maxGrainItems * 3 + 4;
 
-                        // 克重列使用公式：=VLOOKUP(类型名称单元格, 谷子类型库!$A$2:$B$100, 2, FALSE) * 数量单元格
-                        const typeColLetter = getColumnLetter(2 + gIdx * 3); // 谷子类型列
-                        const qtyColLetter = getColumnLetter(3 + gIdx * 3); // 数量列
-                        const formula = `=VLOOKUP(${typeColLetter}${rowNum}, 谷子类型库!$A$2:$B$100, 2, FALSE)*${qtyColLetter}${rowNum}`;
-                        row.push(formula);
+                    // 列宽
+                    xml += '<Column ss:Width="80"/>';
+                    for (let i = 0; i < maxGrainItems; i++) {
+                        xml += '<Column ss:Width="100"/>';
+                        xml += '<Column ss:Width="60"/>';
+                        xml += '<Column ss:Width="80"/>';
+                    }
+                    xml += '<Column ss:Width="100"/>';
+                    xml += '<Column ss:Width="100"/>';
+                    xml += '<Column ss:Width="100"/>';
+                    xml += '<Column ss:Width="100"/>';
+
+                    // 表头
+                    xml += '<Row ss:Height="25">';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">姓名</Data></Cell>';
+                    for (let i = 0; i < maxGrainItems; i++) {
+                        xml += `<Cell ss:StyleID="Header"><Data ss:Type="String">谷子类型${i + 1}</Data></Cell>`;
+                        xml += `<Cell ss:StyleID="Header"><Data ss:Type="String">数量${i + 1}</Data></Cell>`;
+                        xml += `<Cell ss:StyleID="Header"><Data ss:Type="String">克重${i + 1}</Data></Cell>`;
+                    }
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">谷子总克重(g)</Data></Cell>';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">包装克重(g)</Data></Cell>';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">总克重(g)</Data></Cell>';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">应摊运费</Data></Cell>';
+                    xml += '</Row>\n';
+
+                    // 数据行
+                    members.forEach((member, mIdx) => {
+                        const rowNum = mIdx + 2;
+                        xml += '<Row>';
+                        xml += `<Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(member.name)}</Data></Cell>`;
+
+                        member.grainItems.forEach((item, gIdx) => {
+                            const typeName = grainTypes.find(t => t.id === item.typeId)?.name || '';
+                            const typeCol = getColumnLetter(2 + gIdx * 3);
+                            const qtyCol = getColumnLetter(3 + gIdx * 3);
+
+                            xml += `<Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(typeName)}</Data></Cell>`;
+                            xml += `<Cell ss:StyleID="Data"><Data ss:Type="Number">${item.quantity}</Data></Cell>`;
+                            xml += `<Cell ss:StyleID="Data" ss:Formula="=VLOOKUP(${typeCol}${rowNum},谷子类型库!R2C1:R${grainTypes.length + 2}C2,2,FALSE)*${qtyCol}${rowNum}"><Data ss:Type="Number">0</Data></Cell>`;
+                        });
+
+                        for (let i = member.grainItems.length; i < maxGrainItems; i++) {
+                            xml += '<Cell ss:StyleID="Data"><Data ss:Type="String"></Data></Cell>';
+                            xml += '<Cell ss:StyleID="Data"><Data ss:Type="Number">0</Data></Cell>';
+                            xml += '<Cell ss:StyleID="Data"><Data ss:Type="Number">0</Data></Cell>';
+                        }
+
+                        // 谷子总克重
+                        const grainWeightCols = [];
+                        for (let i = 0; i < maxGrainItems; i++) {
+                            grainWeightCols.push(getColumnLetter(4 + i * 3));
+                        }
+                        const grainTotalCol = getColumnLetter(2 + maxGrainItems * 3);
+                        const grainSumFormula = grainWeightCols.map(col => `${col}${rowNum}`).join('+');
+                        xml += `<Cell ss:StyleID="Grams" ss:Formula="=${grainSumFormula}"><Data ss:Type="Number">0</Data></Cell>`;
+
+                        // 包装克重
+                        const packCol = getColumnLetter(3 + maxGrainItems * 3);
+                        xml += `<Cell ss:StyleID="Grams" ss:Formula="=包装总克重!R2C2/${memberCount}"><Data ss:Type="Number">${perMemberPackaging.toFixed(1)}</Data></Cell>`;
+
+                        // 总克重
+                        const totalGramsCol = getColumnLetter(4 + maxGrainItems * 3);
+                        xml += `<Cell ss:StyleID="Grams" ss:Formula="=${grainTotalCol}${rowNum}+${packCol}${rowNum}"><Data ss:Type="Number">0</Data></Cell>`;
+
+                        // 应摊运费
+                        const amountCol = getColumnLetter(5 + maxGrainItems * 3);
+                        xml += `<Cell ss:StyleID="Amount" ss:Formula="=${totalGramsCol}${rowNum}/SUM(${totalGramsCol}R2C${totalGramsCol}:R${memberCount + 1}C${totalGramsCol})*R1C2"><Data ss:Type="Number">0</Data></Cell>`;
+
+                        xml += '</Row>\n';
                     });
 
-                    // 如果该成员谷子项少于maxGrainItems，补空
-                    for (let i = member.grainItems.length; i < maxGrainItems; i++) {
-                        row.push('', '', '');
+                    // 汇总行
+                    const grainTotalColFinal = getColumnLetter(2 + maxGrainItems * 3);
+                    const packColFinal = getColumnLetter(3 + maxGrainItems * 3);
+                    const totalGramsColFinal = getColumnLetter(4 + maxGrainItems * 3);
+                    const amountColFinal = getColumnLetter(5 + maxGrainItems * 3);
+
+                    xml += '<Row>';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">合计</Data></Cell>';
+                    for (let i = 0; i < maxGrainItems * 3; i++) {
+                        xml += '<Cell ss:StyleID="Data"><Data ss:Type="String"></Data></Cell>';
                     }
+                    xml += `<Cell ss:StyleID="Grams" ss:Formula="=SUM(${grainTotalColFinal}2:${grainTotalColFinal}${memberCount + 1})"><Data ss:Type="Number">0</Data></Cell>`;
+                    xml += `<Cell ss:StyleID="Grams"><Data ss:Type="Number">${totalPackagingGrams}</Data></Cell>`;
+                    xml += `<Cell ss:StyleID="Grams" ss:Formula="=SUM(${totalGramsColFinal}2:${totalGramsColFinal}${memberCount + 1})"><Data ss:Type="Number">0</Data></Cell>`;
+                    xml += `<Cell ss:StyleID="Amount" ss:Formula="=SUM(${amountColFinal}2:${amountColFinal}${memberCount + 1})"><Data ss:Type="Number">0</Data></Cell>`;
+                    xml += '</Row>\n';
 
-                    // 谷子总克重公式
-                    const grainWeightCols = [];
-                    for (let i = 0; i < maxGrainItems; i++) {
-                        grainWeightCols.push(getColumnLetter(4 + i * 3)); // 克重列位置
-                    }
-                    const grainTotalFormula = grainWeightCols.map(col => `${col}${rowNum}`).join('+');
-                    row.push(`=${grainTotalFormula}` || '0');
+                    xml += '</Table>\n</Worksheet>\n';
+                    xml += '</Workbook>';
 
-                    // 包装克重公式（平均分配）
-                    const packagingCol = getColumnLetter(headers.length - 2);
-                    row.push(`=包装总克重!$B$2/${memberCount}`);
+                    // 创建Blob并下载（使用application/vnd.ms-excel确保兼容性）
+                    const blob = new Blob(['\ufeff' + xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `国际计算器_${new Date().toISOString().slice(0,10)}.xls`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
 
-                    // 总克重公式
-                    const grainTotalCol = getColumnLetter(headers.length - 3);
-                    const totalGramsCol = getColumnLetter(headers.length - 1);
-                    row.push(`=${grainTotalCol}${rowNum}+${packagingCol}${rowNum}`);
-
-                    // 应摊运费公式
-                    const shippingCol = getColumnLetter(headers.length);
-                    row.push(`=${totalGramsCol}${rowNum}/SUM(${totalGramsCol}$2:${totalGramsCol}$${members.length + 1})*$B$1`);
-
-                    detailData.push(row);
-                });
-
-                // 添加汇总行
-                const totalRow = ['合计'];
-                // 谷子类型列留空
-                for (let i = 0; i < maxGrainItems * 3; i++) {
-                    totalRow.push('');
+                    showToast('✅ Excel文件导出成功！');
+                } catch (err) {
+                    console.error('导出失败:', err);
+                    showError('导出失败: ' + err.message);
                 }
-                // 谷子总克重合计
-                const grainTotalColHeader = getColumnLetter(headers.length - 3);
-                totalRow.push(`=SUM(${grainTotalColHeader}2:${grainTotalColHeader}${members.length + 1})`);
-                // 包装总克重
-                totalRow.push(totalPackagingGrams);
-                // 总克重合计
-                const totalGramsColHeader = getColumnLetter(headers.length - 1);
-                totalRow.push(`=SUM(${totalGramsColHeader}2:${totalGramsColHeader}${members.length + 1})`);
-                // 应摊运费合计
-                const amountColHeader = getColumnLetter(headers.length);
-                totalRow.push(`=SUM(${amountColHeader}2:${amountColHeader}${members.length + 1})`);
-                detailData.push(totalRow);
-
-                const detailWS = XLSX.utils.aoa_to_sheet(detailData);
-                // 设置列宽
-                const detailCols = [{ wch: 12 }];
-                for (let i = 0; i < maxGrainItems; i++) {
-                    detailCols.push({ wch: 15 }, { wch: 8 }, { wch: 12 });
-                }
-                detailCols.push({ wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 15 });
-                detailWS['!cols'] = detailCols;
-
-                // 在明细sheet的A1放运费总额，方便公式引用
-                // 实际我们把总运费放在B1，便于公式引用
-                detailData[0].push(''); // 补充表头
-                detailWS['!ref'] = XLSX.utils.encode_range({
-                    s: { r: 0, c: 0 },
-                    e: { r: detailData.length, c: headers.length }
-                });
-                // 手动设置B1为运费总额
-                detailWS['B1'] = { t: 'n', v: shippingTotal };
-
-                XLSX.utils.book_append_sheet(wb, detailWS, '分摊明细');
-
-                // === Sheet 3: 包装总克重 ===
-                const packagingData = [
-                    ['包装总克重(g)', totalPackagingGrams]
-                ];
-                const packagingWS = XLSX.utils.aoa_to_sheet(packagingData);
-                packagingWS['!cols'] = [{ wch: 20 }, { wch: 15 }];
-                XLSX.utils.book_append_sheet(wb, packagingWS, '包装总克重');
-
-                // 导出文件
-                const fileName = `国际计算器_${new Date().toISOString().slice(0,10)}.xlsx`;
-                XLSX.writeFile(wb, fileName);
             }
 
             function getColumnLetter(colNum) {
@@ -1049,6 +1104,11 @@
                     dividend = Math.floor((dividend - modulo) / 26);
                 }
                 return columnName;
+            }
+
+            function escapeXml(str) {
+                if (typeof str !== 'string') return '';
+                return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
             }
 
             // ---------- 初始化 ----------
