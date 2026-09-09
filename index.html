@@ -55,13 +55,16 @@
         .input-group { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.2rem; }
         .input-field { flex: 1 1 150px; }
         .input-field label { display: block; font-size: 0.85rem; color: var(--text-light); margin-bottom: 0.3rem; }
-        .input-field input {
+        .input-field input, .input-field select {
             width: 100%;
             border: 1.5px solid var(--border);
             border-radius: 8px;
             padding: 0.8rem;
             font-size: 1rem;
+            background: #fafcff;
+            outline: none;
         }
+        .input-field select { cursor: pointer; }
 
         .btn {
             border: none;
@@ -206,8 +209,11 @@
                 <input type="number" id="totalShippingAmount" value="300" min="0" step="0.01">
             </div>
             <div class="input-field">
-                <label>货币符号</label>
-                <input type="text" id="currencySymbol" value="€" maxlength="5" style="font-weight:600;">
+                <label>币种</label>
+                <select id="currencySymbol">
+                    <option value="¥" selected>日元 (¥)</option>
+                    <option value="￥">人民币 (￥)</option>
+                </select>
             </div>
         </div>
 
@@ -242,7 +248,7 @@
 
         <div style="display:flex;gap:0.5rem;margin-top:0.8rem;flex-wrap:wrap;">
             <button id="calculateBtn" class="btn btn-primary">🧮 计算分摊</button>
-            <button id="exportBtn" class="btn btn-green">📥 导出Excel</button>
+            <button id="exportBtn" class="btn btn-green">📥 导出Excel(.xlsx)</button>
         </div>
 
         <div class="summary-grid">
@@ -271,13 +277,11 @@
         let nextGrainTypeId = 4;
         let nextMemberId = 4;
 
-        // 获取每人均摊包装克重
         function getPerMemberPackagingGrams() {
             const totalPackaging = parseFloat(document.getElementById('totalPackagingGrams').value) || 0;
             return members.length > 0 ? totalPackaging / members.length : 0;
         }
 
-        // 计算每位成员的谷子总克重
         function getMemberGrainGrams(member) {
             let total = 0;
             member.grainItems.forEach(item => {
@@ -289,7 +293,6 @@
             return total;
         }
 
-        // 核心计算函数
         function calculate() {
             const shippingTotal = parseFloat(document.getElementById('totalShippingAmount').value) || 0;
             const perMemberPackaging = getPerMemberPackagingGrams();
@@ -303,7 +306,6 @@
             const totalCombinedGrams = results.reduce((sum, r) => sum + r.totalGrams, 0);
             const perGramPrice = totalCombinedGrams > 0 ? shippingTotal / totalCombinedGrams : 0;
             
-            // 更新每位成员的显示
             members.forEach((member, index) => {
                 const amountCell = document.getElementById(`amount-${index}`);
                 const totalGramsCell = document.getElementById(`total-grams-${index}`);
@@ -315,7 +317,6 @@
                 }
             });
             
-            // 更新汇总
             const totalGrainGrams = results.reduce((sum, r) => sum + r.grainGrams, 0);
             const totalPackagingGrams = parseFloat(document.getElementById('totalPackagingGrams').value) || 0;
             
@@ -323,14 +324,13 @@
             document.getElementById('totalPackGramsDisplay').textContent = totalPackagingGrams.toFixed(1) + 'g';
             document.getElementById('totalCombinedGrams').textContent = totalCombinedGrams.toFixed(1) + 'g';
             
-            const symbol = document.getElementById('currencySymbol').value || '€';
+            const symbol = document.getElementById('currencySymbol').value || '¥';
             document.getElementById('displayShippingAmount').textContent = shippingTotal.toFixed(2) + ' ' + symbol;
             document.getElementById('perGramPrice').textContent = perGramPrice.toFixed(3) + ' ' + symbol + '/g';
             
             return { results, shippingTotal, perGramPrice, totalCombinedGrams, perMemberPackaging, totalGrainGrams, totalPackagingGrams };
         }
 
-        // 渲染谷子类型
         function renderGrainTypes() {
             const container = document.getElementById('grainTypesContainer');
             container.innerHTML = '';
@@ -345,7 +345,7 @@
                 nameInput.placeholder = '名称';
                 nameInput.addEventListener('input', (e) => {
                     grainTypes[idx].name = e.target.value;
-                    renderMemberTable(); // 重新渲染成员表格以更新下拉选项
+                    renderMemberTable();
                 });
                 
                 const weightInput = document.createElement('input');
@@ -355,7 +355,7 @@
                 weightInput.step = '0.1';
                 weightInput.addEventListener('input', (e) => {
                     grainTypes[idx].weightPerUnit = parseFloat(e.target.value) || 0;
-                    calculate(); // 实时更新计算
+                    calculate();
                 });
                 
                 const unitSpan = document.createElement('span');
@@ -384,7 +384,6 @@
             });
         }
 
-        // 渲染成员表格
         function renderMemberTable() {
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
@@ -393,7 +392,6 @@
             members.forEach((member, mIdx) => {
                 const row = document.createElement('tr');
                 
-                // 姓名列
                 const nameCell = document.createElement('td');
                 const nameInput = document.createElement('input');
                 nameInput.type = 'text';
@@ -405,7 +403,6 @@
                 });
                 nameCell.appendChild(nameInput);
                 
-                // 谷子列
                 const grainCell = document.createElement('td');
                 const grainDiv = document.createElement('div');
                 grainDiv.style.display = 'flex';
@@ -455,7 +452,6 @@
                     grainDiv.appendChild(itemDiv);
                 });
                 
-                // 添加谷子按钮
                 const addGrainBtn = document.createElement('button');
                 addGrainBtn.className = 'remove-btn';
                 addGrainBtn.textContent = '+ 谷子';
@@ -471,26 +467,22 @@
                 grainDiv.appendChild(addGrainBtn);
                 grainCell.appendChild(grainDiv);
                 
-                // 包装克重列
                 const packCell = document.createElement('td');
                 packCell.style.textAlign = 'center';
                 packCell.style.fontWeight = '600';
                 packCell.style.color = 'var(--orange)';
                 packCell.textContent = perMemberPackaging.toFixed(1);
                 
-                // 总克重列
                 const totalGramsCell = document.createElement('td');
                 totalGramsCell.className = 'total-grams-cell';
                 totalGramsCell.id = `total-grams-${mIdx}`;
                 totalGramsCell.textContent = '0.0';
                 
-                // 应摊运费列
                 const amountCell = document.createElement('td');
                 amountCell.className = 'amount-cell';
                 amountCell.id = `amount-${mIdx}`;
                 amountCell.textContent = '0.00';
                 
-                // 移除按钮列
                 const removeCell = document.createElement('td');
                 const removeBtn = document.createElement('button');
                 removeBtn.className = 'remove-btn';
@@ -513,14 +505,12 @@
                 tbody.appendChild(row);
             });
             
-            // 渲染完成后立即计算
             calculate();
         }
 
-        // 导出Excel
         function exportToExcel() {
             const calcResult = calculate();
-            const symbol = document.getElementById('currencySymbol').value || '€';
+            const symbol = document.getElementById('currencySymbol').value || '¥';
             
             let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
             <head><meta charset="UTF-8"><title>国际计算器</title></head>
@@ -529,7 +519,6 @@
             <p>国际运费总价: ${calcResult.shippingTotal.toFixed(2)} ${symbol} | 包装总克重: ${calcResult.totalPackagingGrams.toFixed(1)}g | 每克单价: ${calcResult.perGramPrice.toFixed(3)} ${symbol}/g</p>
             <table border="1" cellpadding="5" cellspacing="0" style="border-collapse:collapse;">`;
             
-            // 表头
             html += '<tr><th>姓名</th>';
             const maxGrainItems = Math.max(1, ...members.map(m => m.grainItems.length));
             for (let i = 0; i < maxGrainItems; i++) {
@@ -537,7 +526,6 @@
             }
             html += '<th>谷子总克重(g)</th><th>包装克重(g)</th><th>总克重(g)</th><th>应摊运费</th></tr>';
             
-            // 数据行
             members.forEach((member, mIdx) => {
                 const grainGrams = getMemberGrainGrams(member);
                 const totalGrams = grainGrams + calcResult.perMemberPackaging;
@@ -560,7 +548,6 @@
                 html += `<td>${amount.toFixed(2)}</td></tr>`;
             });
             
-            // 汇总行
             html += '<tr><td><strong>合计</strong></td>';
             for (let i = 0; i < maxGrainItems * 3; i++) html += '<td></td>';
             html += `<td><strong>${calcResult.totalGrainGrams.toFixed(1)}</strong></td>`;
@@ -569,7 +556,6 @@
             html += `<td><strong>${calcResult.shippingTotal.toFixed(2)}</strong></td></tr>`;
             html += '</table>';
             
-            // 谷子类型库
             html += '<br/><h3>谷子类型库</h3><table border="1" cellpadding="5" cellspacing="0" style="border-collapse:collapse;">';
             html += '<tr><th>谷子类型名称</th><th>单位克重(g)</th></tr>';
             grainTypes.forEach(type => {
@@ -578,18 +564,18 @@
             html += '</table>';
             html += '</body></html>';
             
-            // 下载
-            const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel' });
+            // 使用.xlsx扩展名导出
+            const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `国际计算器_${new Date().toISOString().slice(0,10)}.xls`;
+            link.download = `国际计算器_${new Date().toISOString().slice(0,10)}.xlsx`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             setTimeout(() => URL.revokeObjectURL(url), 1000);
             
-            showToast('✅ 导出成功！');
+            showToast('✅ 导出成功！(.xlsx格式)');
         }
 
         function escapeHtml(str) {
@@ -604,7 +590,6 @@
             setTimeout(() => toast.remove(), 3000);
         }
 
-        // 初始化
         function init() {
             document.getElementById('addGrainTypeBtn').addEventListener('click', () => {
                 grainTypes.push({ id: `gt${nextGrainTypeId++}`, name: `谷子${grainTypes.length + 1}`, weightPerUnit: 60 });
@@ -627,7 +612,7 @@
                 renderMemberTable();
                 calculate();
             });
-            document.getElementById('currencySymbol').addEventListener('input', calculate);
+            document.getElementById('currencySymbol').addEventListener('change', calculate);
             
             renderGrainTypes();
             renderMemberTable();
