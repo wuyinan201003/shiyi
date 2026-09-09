@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
-    <title>国际计算器</title>
+    <title>国际计算器 · 带公式导出</title>
     <style>
         :root {
             --bg: #f4f7fb;
@@ -539,7 +539,7 @@
 
         <div class="btn-group" style="margin-top: 1rem;">
             <button id="calculateBtn" class="btn-primary">🧮 按克重比例分摊运费</button>
-            <button id="exportBtn" class="btn-export" onclick="exportToExcel()">📥 导出Excel（带公式）</button>
+            <button id="exportBtn" class="btn-export">📥 导出Excel（带公式）</button>
         </div>
 
         <div class="divider"></div>
@@ -559,541 +559,586 @@
     </div>
 
     <script>
-        // ---------- 全局状态 ----------
-        let grainTypes = [
-            { id: 'gt1', name: '普通谷子', weightPerUnit: 50 },
-            { id: 'gt2', name: '大颗粒谷子', weightPerUnit: 80 },
-            { id: 'gt3', name: '混合坚果', weightPerUnit: 120 }
-        ];
+        (function() {
+            // ---------- 初始谷子类型 ----------
+            let grainTypes = [
+                { id: 'gt1', name: '普通谷子', weightPerUnit: 50 },
+                { id: 'gt2', name: '大颗粒谷子', weightPerUnit: 80 },
+                { id: 'gt3', name: '混合坚果', weightPerUnit: 120 }
+            ];
 
-        let members = [
-            { 
-                id: 'm1', 
-                name: 'Alice', 
-                grainItems: [
-                    { typeId: 'gt1', quantity: 3 },
-                    { typeId: 'gt2', quantity: 1 }
-                ]
-            },
-            { 
-                id: 'm2', 
-                name: 'Bob', 
-                grainItems: [
-                    { typeId: 'gt2', quantity: 2 },
-                    { typeId: 'gt3', quantity: 1 }
-                ]
-            },
-            { 
-                id: 'm3', 
-                name: 'Charlie', 
-                grainItems: [
-                    { typeId: 'gt1', quantity: 5 },
-                    { typeId: 'gt3', quantity: 2 }
-                ]
-            }
-        ];
+            // ---------- 初始成员 ----------
+            let members = [
+                { 
+                    id: 'm1', 
+                    name: 'Alice', 
+                    grainItems: [
+                        { typeId: 'gt1', quantity: 3 },
+                        { typeId: 'gt2', quantity: 1 }
+                    ]
+                },
+                { 
+                    id: 'm2', 
+                    name: 'Bob', 
+                    grainItems: [
+                        { typeId: 'gt2', quantity: 2 },
+                        { typeId: 'gt3', quantity: 1 }
+                    ]
+                },
+                { 
+                    id: 'm3', 
+                    name: 'Charlie', 
+                    grainItems: [
+                        { typeId: 'gt1', quantity: 5 },
+                        { typeId: 'gt3', quantity: 2 }
+                    ]
+                }
+            ];
 
-        let nextGrainTypeId = 4;
-        let nextMemberId = 4;
+            let nextGrainTypeId = 4;
+            let nextMemberId = 4;
 
-        // ---------- DOM元素 ----------
-        const grainTypesContainer = document.getElementById('grainTypesContainer');
-        const tableBody = document.getElementById('tableBody');
-        const addGrainTypeBtn = document.getElementById('addGrainTypeBtn');
-        const addMemberBtn = document.getElementById('addMemberBtn');
-        const calculateBtn = document.getElementById('calculateBtn');
-        const totalShippingInput = document.getElementById('totalShippingAmount');
-        const totalPackagingGramsInput = document.getElementById('totalPackagingGrams');
-        const currencySymbolInput = document.getElementById('currencySymbol');
-        const errorBox = document.getElementById('errorBox');
-        const errorText = document.getElementById('errorText');
+            // DOM元素
+            const grainTypesContainer = document.getElementById('grainTypesContainer');
+            const tableBody = document.getElementById('tableBody');
+            const addGrainTypeBtn = document.getElementById('addGrainTypeBtn');
+            const addMemberBtn = document.getElementById('addMemberBtn');
+            const calculateBtn = document.getElementById('calculateBtn');
+            const exportBtn = document.getElementById('exportBtn');
+            const totalShippingInput = document.getElementById('totalShippingAmount');
+            const totalPackagingGramsInput = document.getElementById('totalPackagingGrams');
+            const currencySymbolInput = document.getElementById('currencySymbol');
+            const errorBox = document.getElementById('errorBox');
+            const errorText = document.getElementById('errorText');
 
-        // 汇总元素
-        const totalGrainGramsDisplay = document.getElementById('totalGrainGrams');
-        const totalPackGramsDisplay = document.getElementById('totalPackGramsDisplay');
-        const totalCombinedGramsDisplay = document.getElementById('totalCombinedGrams');
-        const displayShippingAmount = document.getElementById('displayShippingAmount');
-        const perGramPriceDisplay = document.getElementById('perGramPrice');
-        const shipCur = document.getElementById('shipCur');
-        const perGramCur = document.getElementById('perGramCur');
+            // 汇总元素
+            const totalGrainGramsDisplay = document.getElementById('totalGrainGrams');
+            const totalPackGramsDisplay = document.getElementById('totalPackGramsDisplay');
+            const totalCombinedGramsDisplay = document.getElementById('totalCombinedGrams');
+            const displayShippingAmount = document.getElementById('displayShippingAmount');
+            const perGramPriceDisplay = document.getElementById('perGramPrice');
+            const shipCur = document.getElementById('shipCur');
+            const perGramCur = document.getElementById('perGramCur');
 
-        // ---------- 渲染谷子类型 ----------
-        function renderGrainTypes() {
-            grainTypesContainer.innerHTML = '';
-            grainTypes.forEach((type, idx) => {
-                const card = document.createElement('div');
-                card.className = 'grain-type-card';
+            // ---------- 渲染谷子类型 ----------
+            function renderGrainTypes() {
+                grainTypesContainer.innerHTML = '';
+                grainTypes.forEach((type, idx) => {
+                    const card = document.createElement('div');
+                    card.className = 'grain-type-card';
 
-                const nameInput = document.createElement('input');
-                nameInput.type = 'text';
-                nameInput.className = 'type-name-input';
-                nameInput.value = type.name;
-                nameInput.placeholder = '输入名称';
-                nameInput.title = '点击修改谷子名称';
-                nameInput.addEventListener('input', (e) => {
-                    grainTypes[idx].name = e.target.value;
-                    renderMemberTable();
-                });
-
-                const weightInput = document.createElement('input');
-                weightInput.type = 'number';
-                weightInput.min = '0';
-                weightInput.step = '0.1';
-                weightInput.className = 'weight-input';
-                weightInput.value = type.weightPerUnit;
-                weightInput.title = '单个克重(g)';
-                weightInput.addEventListener('input', (e) => {
-                    const val = parseFloat(e.target.value);
-                    grainTypes[idx].weightPerUnit = isNaN(val) ? 0 : val;
-                });
-
-                const unitSpan = document.createElement('span');
-                unitSpan.className = 'unit';
-                unitSpan.textContent = 'g/个';
-
-                const removeBtn = document.createElement('button');
-                removeBtn.className = 'remove-type-btn';
-                removeBtn.innerHTML = '&times;';
-                removeBtn.title = '删除该类型';
-                removeBtn.addEventListener('click', () => removeGrainType(type.id));
-
-                card.appendChild(nameInput);
-                card.appendChild(weightInput);
-                card.appendChild(unitSpan);
-                card.appendChild(removeBtn);
-                grainTypesContainer.appendChild(card);
-            });
-            renderMemberTable();
-        }
-
-        function removeGrainType(typeId) {
-            if (grainTypes.length <= 1) { showError('至少保留一种谷子类型'); return; }
-            grainTypes = grainTypes.filter(t => t.id !== typeId);
-            members.forEach(m => { m.grainItems = m.grainItems.filter(item => item.typeId !== typeId); });
-            renderGrainTypes();
-        }
-
-        // ---------- 渲染成员表格 ----------
-        function renderMemberTable() {
-            tableBody.innerHTML = '';
-            const perMemberPackaging = getPerMemberPackagingGrams();
-
-            members.forEach((member, mIdx) => {
-                const row = document.createElement('tr');
-
-                const nameCell = document.createElement('td');
-                nameCell.className = 'name-input-cell';
-                const nameInput = document.createElement('input');
-                nameInput.type = 'text';
-                nameInput.placeholder = '姓名';
-                nameInput.value = member.name;
-                nameInput.addEventListener('input', (e) => { members[mIdx].name = e.target.value; });
-                nameCell.appendChild(nameInput);
-
-                const grainCell = document.createElement('td');
-                const grainSelectDiv = document.createElement('div');
-                grainSelectDiv.className = 'member-grain-select';
-                member.grainItems.forEach((item, gIdx) => {
-                    const itemDiv = document.createElement('div');
-                    itemDiv.className = 'grain-select-item';
-                    const select = document.createElement('select');
-                    grainTypes.forEach(type => {
-                        const opt = document.createElement('option');
-                        opt.value = type.id;
-                        opt.textContent = type.name;
-                        if (type.id === item.typeId) opt.selected = true;
-                        select.appendChild(opt);
-                    });
-                    select.addEventListener('change', (e) => {
-                        members[mIdx].grainItems[gIdx].typeId = e.target.value;
-                    });
-                    const qtyInput = document.createElement('input');
-                    qtyInput.type = 'number';
-                    qtyInput.min = '0';
-                    qtyInput.step = '0.1';
-                    qtyInput.value = item.quantity;
-                    qtyInput.title = '数量';
-                    qtyInput.addEventListener('input', (e) => {
-                        const val = parseFloat(e.target.value);
-                        members[mIdx].grainItems[gIdx].quantity = isNaN(val) ? 0 : val;
-                    });
-                    const removeItemBtn = document.createElement('button');
-                    removeItemBtn.className = 'remove-type-btn';
-                    removeItemBtn.innerHTML = '×';
-                    removeItemBtn.style.fontSize = '1rem';
-                    removeItemBtn.title = '移除该谷子项';
-                    removeItemBtn.addEventListener('click', () => {
-                        members[mIdx].grainItems.splice(gIdx, 1);
+                    const nameInput = document.createElement('input');
+                    nameInput.type = 'text';
+                    nameInput.className = 'type-name-input';
+                    nameInput.value = type.name;
+                    nameInput.placeholder = '输入名称';
+                    nameInput.title = '点击修改谷子名称';
+                    nameInput.addEventListener('input', (e) => {
+                        grainTypes[idx].name = e.target.value;
                         renderMemberTable();
                     });
-                    itemDiv.appendChild(select);
-                    itemDiv.appendChild(qtyInput);
-                    itemDiv.appendChild(removeItemBtn);
-                    grainSelectDiv.appendChild(itemDiv);
-                });
-                const addGrainBtn = document.createElement('button');
-                addGrainBtn.className = 'add-type-btn';
-                addGrainBtn.style.padding = '0.2rem 0.6rem';
-                addGrainBtn.style.fontSize = '0.75rem';
-                addGrainBtn.textContent = '+ 谷子';
-                addGrainBtn.addEventListener('click', () => {
-                    if (grainTypes.length === 0) { showError('请先添加谷子类型'); return; }
-                    members[mIdx].grainItems.push({ typeId: grainTypes[0].id, quantity: 1 });
-                    renderMemberTable();
-                });
-                grainSelectDiv.appendChild(addGrainBtn);
-                grainCell.appendChild(grainSelectDiv);
 
-                const packCell = document.createElement('td');
-                packCell.style.textAlign = 'center';
-                packCell.style.fontWeight = '600';
-                packCell.style.color = 'var(--orange)';
-                packCell.textContent = perMemberPackaging.toFixed(1);
-
-                const totalGramsCell = document.createElement('td');
-                totalGramsCell.className = 'total-grams-cell';
-                totalGramsCell.id = `total-grams-${mIdx}`;
-                totalGramsCell.textContent = '0.0';
-
-                const amountCell = document.createElement('td');
-                amountCell.className = 'amount-cell';
-                amountCell.id = `amount-${mIdx}`;
-                amountCell.textContent = '0.00';
-
-                const removeCell = document.createElement('td');
-                removeCell.className = 'remove-cell';
-                const removeBtn = document.createElement('button');
-                removeBtn.innerHTML = '&times;';
-                removeBtn.title = '移除该成员';
-                removeBtn.addEventListener('click', () => removeMember(mIdx));
-                removeCell.appendChild(removeBtn);
-
-                row.appendChild(nameCell);
-                row.appendChild(grainCell);
-                row.appendChild(packCell);
-                row.appendChild(totalGramsCell);
-                row.appendChild(amountCell);
-                row.appendChild(removeCell);
-                tableBody.appendChild(row);
-            });
-
-            updateCurrencyBadges();
-            updateSummaryDisplay();
-        }
-
-        function getPerMemberPackagingGrams() {
-            const totalPackaging = parseFloat(totalPackagingGramsInput.value) || 0;
-            const memberCount = members.length;
-            return memberCount > 0 ? totalPackaging / memberCount : 0;
-        }
-
-        function removeMember(index) {
-            if (members.length <= 1) { showError('至少保留一位成员'); return; }
-            members.splice(index, 1);
-            renderMemberTable();
-            clearAmounts();
-        }
-
-        function clearAmounts() {
-            document.querySelectorAll('.amount-cell').forEach(el => {
-                if (el.id.startsWith('amount-')) el.textContent = '0.00';
-            });
-            document.querySelectorAll('.total-grams-cell').forEach(el => {
-                if (el.id.startsWith('total-grams-')) el.textContent = '0.0';
-            });
-        }
-
-        function showError(msg) {
-            errorBox.classList.remove('hidden');
-            errorText.textContent = msg;
-            setTimeout(() => errorBox.classList.add('hidden'), 4000);
-        }
-        function hideError() { errorBox.classList.add('hidden'); }
-
-        function showToast(msg) {
-            const toast = document.createElement('div');
-            toast.className = 'toast';
-            toast.textContent = msg;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3500);
-        }
-
-        // ---------- 计算核心 ----------
-        function calculateAndDisplay() {
-            hideError();
-
-            const shippingTotal = parseFloat(totalShippingInput.value);
-            if (isNaN(shippingTotal) || shippingTotal < 0) { showError('国际运费总价无效'); return; }
-
-            const totalPackagingGrams = parseFloat(totalPackagingGramsInput.value) || 0;
-            const perMemberPackaging = getPerMemberPackagingGrams();
-
-            const memberGrainGrams = members.map(m => {
-                let totalGrams = 0;
-                m.grainItems.forEach(item => {
-                    const type = grainTypes.find(t => t.id === item.typeId);
-                    if (type && !isNaN(type.weightPerUnit) && type.weightPerUnit >= 0) {
-                        totalGrams += type.weightPerUnit * (parseFloat(item.quantity) || 0);
-                    }
-                });
-                return totalGrams;
-            });
-
-            const memberTotalGrams = memberGrainGrams.map(g => g + perMemberPackaging);
-            const totalCombinedGrams = memberTotalGrams.reduce((s, v) => s + v, 0);
-
-            if (totalCombinedGrams <= 0) { showError('总克重必须大于0'); return; }
-
-            const perGramPrice = shippingTotal / totalCombinedGrams;
-
-            members.forEach((member, index) => {
-                const totalGramsCell = document.getElementById(`total-grams-${index}`);
-                if (totalGramsCell) totalGramsCell.textContent = memberTotalGrams[index].toFixed(1);
-
-                const amountCell = document.getElementById(`amount-${index}`);
-                if (amountCell) {
-                    const amount = memberTotalGrams[index] * perGramPrice;
-                    amountCell.textContent = amount.toFixed(2);
-                }
-            });
-
-            const totalGrainGrams = memberGrainGrams.reduce((s, v) => s + v, 0);
-            updateSummaryDisplay(totalGrainGrams, totalPackagingGrams, totalCombinedGrams, shippingTotal, perGramPrice);
-        }
-
-        function updateSummaryDisplay(forceGrainGrams, forcePackGrams, forceCombinedGrams, forceShipAmt, forcePerGram) {
-            const shipAmount = forceShipAmt !== undefined ? forceShipAmt : parseFloat(totalShippingInput.value) || 0;
-
-            let totalGrainGrams = forceGrainGrams;
-            if (totalGrainGrams === undefined) {
-                totalGrainGrams = members.reduce((sum, m) => {
-                    let grams = 0;
-                    m.grainItems.forEach(item => {
-                        const type = grainTypes.find(t => t.id === item.typeId);
-                        if (type && !isNaN(type.weightPerUnit)) grams += type.weightPerUnit * (parseFloat(item.quantity) || 0);
+                    const weightInput = document.createElement('input');
+                    weightInput.type = 'number';
+                    weightInput.min = '0';
+                    weightInput.step = '0.1';
+                    weightInput.className = 'weight-input';
+                    weightInput.value = type.weightPerUnit;
+                    weightInput.title = '单个克重(g)';
+                    weightInput.addEventListener('input', (e) => {
+                        const val = parseFloat(e.target.value);
+                        grainTypes[idx].weightPerUnit = isNaN(val) ? 0 : val;
                     });
-                    return sum + grams;
-                }, 0);
+
+                    const unitSpan = document.createElement('span');
+                    unitSpan.className = 'unit';
+                    unitSpan.textContent = 'g/个';
+
+                    const removeBtn = document.createElement('button');
+                    removeBtn.className = 'remove-type-btn';
+                    removeBtn.innerHTML = '&times;';
+                    removeBtn.title = '删除该类型';
+                    removeBtn.addEventListener('click', () => removeGrainType(type.id));
+
+                    card.appendChild(nameInput);
+                    card.appendChild(weightInput);
+                    card.appendChild(unitSpan);
+                    card.appendChild(removeBtn);
+                    grainTypesContainer.appendChild(card);
+                });
+                renderMemberTable();
             }
 
-            const totalPackGrams = forcePackGrams !== undefined ? forcePackGrams : (parseFloat(totalPackagingGramsInput.value) || 0);
-            const combinedGrams = forceCombinedGrams !== undefined ? forceCombinedGrams : totalGrainGrams + totalPackGrams;
-            const perGram = forcePerGram !== undefined ? forcePerGram : (combinedGrams > 0 ? shipAmount / combinedGrams : 0);
+            function removeGrainType(typeId) {
+                if (grainTypes.length <= 1) { showError('至少保留一种谷子类型'); return; }
+                grainTypes = grainTypes.filter(t => t.id !== typeId);
+                members.forEach(m => { m.grainItems = m.grainItems.filter(item => item.typeId !== typeId); });
+                renderGrainTypes();
+            }
 
-            if (totalGrainGramsDisplay) totalGrainGramsDisplay.textContent = totalGrainGrams.toFixed(1);
-            if (totalPackGramsDisplay) totalPackGramsDisplay.textContent = totalPackGrams.toFixed(1);
-            if (totalCombinedGramsDisplay) totalCombinedGramsDisplay.textContent = combinedGrams.toFixed(1);
-            if (displayShippingAmount) displayShippingAmount.textContent = shipAmount.toFixed(2);
-            if (perGramPriceDisplay) perGramPriceDisplay.textContent = perGram.toFixed(3);
+            // ---------- 渲染成员表格 ----------
+            function renderMemberTable() {
+                tableBody.innerHTML = '';
+                const perMemberPackaging = getPerMemberPackagingGrams();
 
-            const symbol = currencySymbolInput.value.trim() || '€';
-            if (shipCur) shipCur.textContent = symbol;
-            if (perGramCur) perGramCur.textContent = `${symbol}/g`;
-        }
+                members.forEach((member, mIdx) => {
+                    const row = document.createElement('tr');
 
-        function updateCurrencyBadges() {
-            const symbol = currencySymbolInput.value.trim() || '€';
-            if (shipCur) shipCur.textContent = symbol;
-            if (perGramCur) perGramCur.textContent = `${symbol}/g`;
-        }
+                    const nameCell = document.createElement('td');
+                    nameCell.className = 'name-input-cell';
+                    const nameInput = document.createElement('input');
+                    nameInput.type = 'text';
+                    nameInput.placeholder = '姓名';
+                    nameInput.value = member.name;
+                    nameInput.addEventListener('input', (e) => { members[mIdx].name = e.target.value; });
+                    nameCell.appendChild(nameInput);
 
-        // ---------- 添加谷子类型 ----------
-        function addGrainType(name = `谷子${grainTypes.length + 1}`, weight = 60) {
-            grainTypes.push({ id: `gt${nextGrainTypeId++}`, name: name, weightPerUnit: weight });
-            renderGrainTypes();
-        }
+                    const grainCell = document.createElement('td');
+                    const grainSelectDiv = document.createElement('div');
+                    grainSelectDiv.className = 'member-grain-select';
+                    member.grainItems.forEach((item, gIdx) => {
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'grain-select-item';
+                        const select = document.createElement('select');
+                        grainTypes.forEach(type => {
+                            const opt = document.createElement('option');
+                            opt.value = type.id;
+                            opt.textContent = type.name;
+                            if (type.id === item.typeId) opt.selected = true;
+                            select.appendChild(opt);
+                        });
+                        select.addEventListener('change', (e) => {
+                            members[mIdx].grainItems[gIdx].typeId = e.target.value;
+                        });
+                        const qtyInput = document.createElement('input');
+                        qtyInput.type = 'number';
+                        qtyInput.min = '0';
+                        qtyInput.step = '0.1';
+                        qtyInput.value = item.quantity;
+                        qtyInput.title = '数量';
+                        qtyInput.addEventListener('input', (e) => {
+                            const val = parseFloat(e.target.value);
+                            members[mIdx].grainItems[gIdx].quantity = isNaN(val) ? 0 : val;
+                        });
+                        const removeItemBtn = document.createElement('button');
+                        removeItemBtn.className = 'remove-type-btn';
+                        removeItemBtn.innerHTML = '×';
+                        removeItemBtn.style.fontSize = '1rem';
+                        removeItemBtn.title = '移除该谷子项';
+                        removeItemBtn.addEventListener('click', () => {
+                            members[mIdx].grainItems.splice(gIdx, 1);
+                            renderMemberTable();
+                        });
+                        itemDiv.appendChild(select);
+                        itemDiv.appendChild(qtyInput);
+                        itemDiv.appendChild(removeItemBtn);
+                        grainSelectDiv.appendChild(itemDiv);
+                    });
+                    const addGrainBtn = document.createElement('button');
+                    addGrainBtn.className = 'add-type-btn';
+                    addGrainBtn.style.padding = '0.2rem 0.6rem';
+                    addGrainBtn.style.fontSize = '0.75rem';
+                    addGrainBtn.textContent = '+ 谷子';
+                    addGrainBtn.addEventListener('click', () => {
+                        if (grainTypes.length === 0) { showError('请先添加谷子类型'); return; }
+                        members[mIdx].grainItems.push({ typeId: grainTypes[0].id, quantity: 1 });
+                        renderMemberTable();
+                    });
+                    grainSelectDiv.appendChild(addGrainBtn);
+                    grainCell.appendChild(grainSelectDiv);
 
-        // ---------- 添加成员 ----------
-        function addMember(name = `成员${members.length + 1}`) {
-            members.push({
-                id: `m${nextMemberId++}`,
-                name: name,
-                grainItems: grainTypes.length > 0 ? [{ typeId: grainTypes[0].id, quantity: 1 }] : []
-            });
-            renderMemberTable();
-            clearAmounts();
-        }
+                    const packCell = document.createElement('td');
+                    packCell.style.textAlign = 'center';
+                    packCell.style.fontWeight = '600';
+                    packCell.style.color = 'var(--orange)';
+                    packCell.textContent = perMemberPackaging.toFixed(1);
 
-        // ---------- 导出Excel（使用HTML表格方式，可靠且兼容） ----------
-        function exportToExcel() {
-            try {
-                // 先计算
-                calculateAndDisplay();
-                
-                const symbol = currencySymbolInput.value.trim() || '€';
-                const shippingTotal = parseFloat(totalShippingInput.value) || 0;
+                    const totalGramsCell = document.createElement('td');
+                    totalGramsCell.className = 'total-grams-cell';
+                    totalGramsCell.id = `total-grams-${mIdx}`;
+                    totalGramsCell.textContent = '0.0';
+
+                    const amountCell = document.createElement('td');
+                    amountCell.className = 'amount-cell';
+                    amountCell.id = `amount-${mIdx}`;
+                    amountCell.textContent = '0.00';
+
+                    const removeCell = document.createElement('td');
+                    removeCell.className = 'remove-cell';
+                    const removeBtn = document.createElement('button');
+                    removeBtn.innerHTML = '&times;';
+                    removeBtn.title = '移除该成员';
+                    removeBtn.addEventListener('click', () => removeMember(mIdx));
+                    removeCell.appendChild(removeBtn);
+
+                    row.appendChild(nameCell);
+                    row.appendChild(grainCell);
+                    row.appendChild(packCell);
+                    row.appendChild(totalGramsCell);
+                    row.appendChild(amountCell);
+                    row.appendChild(removeCell);
+                    tableBody.appendChild(row);
+                });
+
+                updateCurrencyBadges();
+                updateSummaryDisplay();
+            }
+
+            function getPerMemberPackagingGrams() {
+                const totalPackaging = parseFloat(totalPackagingGramsInput.value) || 0;
+                const memberCount = members.length;
+                return memberCount > 0 ? totalPackaging / memberCount : 0;
+            }
+
+            function removeMember(index) {
+                if (members.length <= 1) { showError('至少保留一位成员'); return; }
+                members.splice(index, 1);
+                renderMemberTable();
+                clearAmounts();
+            }
+
+            function clearAmounts() {
+                document.querySelectorAll('.amount-cell').forEach(el => {
+                    if (el.id.startsWith('amount-')) el.textContent = '0.00';
+                });
+                document.querySelectorAll('.total-grams-cell').forEach(el => {
+                    if (el.id.startsWith('total-grams-')) el.textContent = '0.0';
+                });
+            }
+
+            function showError(msg) {
+                errorBox.classList.remove('hidden');
+                errorText.textContent = msg;
+                setTimeout(() => errorBox.classList.add('hidden'), 4000);
+            }
+            function hideError() { errorBox.classList.add('hidden'); }
+
+            function showToast(msg) {
+                const toast = document.createElement('div');
+                toast.className = 'toast';
+                toast.textContent = msg;
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3500);
+            }
+
+            // ---------- 计算核心 ----------
+            function calculateAndDisplay() {
+                hideError();
+
+                const shippingTotal = parseFloat(totalShippingInput.value);
+                if (isNaN(shippingTotal) || shippingTotal < 0) { showError('国际运费总价无效'); return; }
+
                 const totalPackagingGrams = parseFloat(totalPackagingGramsInput.value) || 0;
                 const perMemberPackaging = getPerMemberPackagingGrams();
-                const memberCount = members.length;
-                
-                // 计算每位成员的谷子克重
+
                 const memberGrainGrams = members.map(m => {
                     let totalGrams = 0;
                     m.grainItems.forEach(item => {
                         const type = grainTypes.find(t => t.id === item.typeId);
-                        if (type && !isNaN(type.weightPerUnit)) {
+                        if (type && !isNaN(type.weightPerUnit) && type.weightPerUnit >= 0) {
                             totalGrams += type.weightPerUnit * (parseFloat(item.quantity) || 0);
                         }
                     });
                     return totalGrams;
                 });
-                
+
                 const memberTotalGrams = memberGrainGrams.map(g => g + perMemberPackaging);
                 const totalCombinedGrams = memberTotalGrams.reduce((s, v) => s + v, 0);
+
+                if (totalCombinedGrams <= 0) { showError('总克重必须大于0'); return; }
+
                 const perGramPrice = shippingTotal / totalCombinedGrams;
-                
-                // 构建HTML表格内容
-                let html = `
-                <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-                <head>
-                    <meta charset="UTF-8">
-                    <title>国际计算器</title>
-                    <!--[if gte mso 9]>
-                    <xml>
-                        <x:ExcelWorkbook>
-                            <x:ExcelWorksheets>
-                                <x:ExcelWorksheet>
-                                    <x:Name>分摊明细</x:Name>
-                                    <x:WorksheetOptions>
-                                        <x:DisplayGridlines/>
-                                    </x:WorksheetOptions>
-                                </x:ExcelWorksheet>
-                            </x:ExcelWorksheets>
-                        </x:ExcelWorkbook>
-                    </xml>
-                    <![endif]-->
-                    <style>
-                        table { border-collapse: collapse; font-family: '微软雅黑', 'Microsoft YaHei', sans-serif; }
-                        th { background: #1E3A5F; color: white; font-weight: bold; padding: 10px; border: 1px solid #333; }
-                        td { padding: 8px; border: 1px solid #ccc; }
-                        .header-row { background: #f0f4fa; font-weight: bold; }
-                    </style>
-                </head>
-                <body>
-                <h3>国际计算器 - 分摊明细</h3>
-                <p>国际运费总价: ${shippingTotal.toFixed(2)} ${symbol} | 包装总克重: ${totalPackagingGrams.toFixed(1)}g | 每克单价: ${perGramPrice.toFixed(3)} ${symbol}/g</p>
-                <table>
-                    <tr>
-                        <th>姓名</th>`;
-                
-                // 动态添加谷子类型列
-                const maxGrainItems = Math.max(1, ...members.map(m => m.grainItems.length));
-                for (let i = 0; i < maxGrainItems; i++) {
-                    html += `<th>谷子类型${i + 1}</th><th>数量${i + 1}</th><th>克重${i + 1}</th>`;
-                }
-                
-                html += `<th>谷子总克重(g)</th><th>包装克重(g)</th><th>总克重(g)</th><th>应摊运费</th>
-                    </tr>`;
-                
-                // 数据行
-                members.forEach((member, mIdx) => {
-                    html += `<tr>
-                        <td>${escapeHtml(member.name)}</td>`;
-                    
-                    member.grainItems.forEach((item, gIdx) => {
-                        const typeName = grainTypes.find(t => t.id === item.typeId)?.name || '';
-                        const typeWeight = grainTypes.find(t => t.id === item.typeId)?.weightPerUnit || 0;
-                        const qty = parseFloat(item.quantity) || 0;
-                        const itemGrams = typeWeight * qty;
-                        html += `<td>${escapeHtml(typeName)}</td><td>${qty}</td><td>${itemGrams.toFixed(1)}</td>`;
-                    });
-                    
-                    for (let i = member.grainItems.length; i < maxGrainItems; i++) {
-                        html += `<td></td><td></td><td></td>`;
+
+                members.forEach((member, index) => {
+                    const totalGramsCell = document.getElementById(`total-grams-${index}`);
+                    if (totalGramsCell) totalGramsCell.textContent = memberTotalGrams[index].toFixed(1);
+
+                    const amountCell = document.getElementById(`amount-${index}`);
+                    if (amountCell) {
+                        const amount = memberTotalGrams[index] * perGramPrice;
+                        amountCell.textContent = amount.toFixed(2);
                     }
-                    
-                    html += `<td>${memberGrainGrams[mIdx].toFixed(1)}</td>`;
-                    html += `<td>${perMemberPackaging.toFixed(1)}</td>`;
-                    html += `<td>${memberTotalGrams[mIdx].toFixed(1)}</td>`;
-                    html += `<td>${(memberTotalGrams[mIdx] * perGramPrice).toFixed(2)}</td>`;
-                    html += `</tr>`;
                 });
-                
-                // 汇总行
-                html += `<tr class="header-row">
-                    <td><strong>合计</strong></td>`;
-                for (let i = 0; i < maxGrainItems * 3; i++) {
-                    html += `<td></td>`;
-                }
+
                 const totalGrainGrams = memberGrainGrams.reduce((s, v) => s + v, 0);
-                html += `<td><strong>${totalGrainGrams.toFixed(1)}</strong></td>`;
-                html += `<td><strong>${totalPackagingGrams.toFixed(1)}</strong></td>`;
-                html += `<td><strong>${totalCombinedGrams.toFixed(1)}</strong></td>`;
-                html += `<td><strong>${shippingTotal.toFixed(2)}</strong></td>`;
-                html += `</tr>`;
-                
-                html += `
-                </table>
-                <br/>
-                <table>
-                    <tr class="header-row">
-                        <th colspan="3">谷子类型库（克重参考）</th>
-                    </tr>
-                    <tr>
-                        <th>谷子类型名称</th>
-                        <th>单位克重(g)</th>
-                    </tr>`;
-                
-                grainTypes.forEach(type => {
-                    html += `<tr><td>${escapeHtml(type.name)}</td><td>${type.weightPerUnit}</td></tr>`;
-                });
-                
-                html += `
-                </table>
-                <p><strong>计算说明：</strong>每位成员应摊运费 = (个人谷子总克重 + 个人包装克重) ÷ 全体成员总克重 × 国际运费总价</p>
-                </body>
-                </html>`;
-                
-                // 创建Blob
-                const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `国际计算器_${new Date().toISOString().slice(0,10)}.xls`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                setTimeout(() => URL.revokeObjectURL(url), 1000);
-                
-                showToast('✅ Excel文件导出成功！');
-            } catch (err) {
-                console.error('导出失败:', err);
-                showError('导出失败: ' + err.message);
+                updateSummaryDisplay(totalGrainGrams, totalPackagingGrams, totalCombinedGrams, shippingTotal, perGramPrice);
             }
-        }
 
-        function escapeHtml(str) {
-            if (typeof str !== 'string') return '';
-            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        }
+            function updateSummaryDisplay(forceGrainGrams, forcePackGrams, forceCombinedGrams, forceShipAmt, forcePerGram) {
+                const shipAmount = forceShipAmt !== undefined ? forceShipAmt : parseFloat(totalShippingInput.value) || 0;
 
-        // ---------- 初始化 ----------
-        function initializeSample() {
-            totalShippingInput.value = '300.00';
-            totalPackagingGramsInput.value = '245';
-            currencySymbolInput.value = '€';
-            renderGrainTypes();
-            renderMemberTable();
-            calculateAndDisplay();
-        }
+                let totalGrainGrams = forceGrainGrams;
+                if (totalGrainGrams === undefined) {
+                    totalGrainGrams = members.reduce((sum, m) => {
+                        let grams = 0;
+                        m.grainItems.forEach(item => {
+                            const type = grainTypes.find(t => t.id === item.typeId);
+                            if (type && !isNaN(type.weightPerUnit)) grams += type.weightPerUnit * (parseFloat(item.quantity) || 0);
+                        });
+                        return sum + grams;
+                    }, 0);
+                }
 
-        // ---------- 事件绑定 ----------
-        addGrainTypeBtn.addEventListener('click', () => addGrainType());
-        addMemberBtn.addEventListener('click', () => addMember());
-        calculateBtn.addEventListener('click', calculateAndDisplay);
-        // 注意：exportBtn已经在HTML中使用onclick属性绑定
+                const totalPackGrams = forcePackGrams !== undefined ? forcePackGrams : (parseFloat(totalPackagingGramsInput.value) || 0);
+                const combinedGrams = forceCombinedGrams !== undefined ? forceCombinedGrams : totalGrainGrams + totalPackGrams;
+                const perGram = forcePerGram !== undefined ? forcePerGram : (combinedGrams > 0 ? shipAmount / combinedGrams : 0);
 
-        totalShippingInput.addEventListener('input', () => updateSummaryDisplay());
-        totalPackagingGramsInput.addEventListener('input', () => {
-            renderMemberTable();
-            updateSummaryDisplay();
-        });
-        currencySymbolInput.addEventListener('input', () => {
-            updateCurrencyBadges();
-            updateSummaryDisplay();
-        });
+                if (totalGrainGramsDisplay) totalGrainGramsDisplay.textContent = totalGrainGrams.toFixed(1);
+                if (totalPackGramsDisplay) totalPackGramsDisplay.textContent = totalPackGrams.toFixed(1);
+                if (totalCombinedGramsDisplay) totalCombinedGramsDisplay.textContent = combinedGrams.toFixed(1);
+                if (displayShippingAmount) displayShippingAmount.textContent = shipAmount.toFixed(2);
+                if (perGramPriceDisplay) perGramPriceDisplay.textContent = perGram.toFixed(3);
 
-        window.addEventListener('DOMContentLoaded', initializeSample);
+                const symbol = currencySymbolInput.value.trim() || '€';
+                if (shipCur) shipCur.textContent = symbol;
+                if (perGramCur) perGramCur.textContent = `${symbol}/g`;
+            }
+
+            function updateCurrencyBadges() {
+                const symbol = currencySymbolInput.value.trim() || '€';
+                if (shipCur) shipCur.textContent = symbol;
+                if (perGramCur) perGramCur.textContent = `${symbol}/g`;
+            }
+
+            // ---------- 添加谷子类型 ----------
+            function addGrainType(name = `谷子${grainTypes.length + 1}`, weight = 60) {
+                grainTypes.push({ id: `gt${nextGrainTypeId++}`, name: name, weightPerUnit: weight });
+                renderGrainTypes();
+            }
+
+            // ---------- 添加成员 ----------
+            function addMember(name = `成员${members.length + 1}`) {
+                members.push({
+                    id: `m${nextMemberId++}`,
+                    name: name,
+                    grainItems: grainTypes.length > 0 ? [{ typeId: grainTypes[0].id, quantity: 1 }] : []
+                });
+                renderMemberTable();
+                clearAmounts();
+            }
+
+            // ---------- 导出Excel（带公式） - 修复版 ----------
+            function exportToExcel() {
+                try {
+                    // 先计算一次确保数据最新
+                    calculateAndDisplay();
+
+                    const shippingTotal = parseFloat(totalShippingInput.value) || 0;
+                    const totalPackagingGrams = parseFloat(totalPackagingGramsInput.value) || 0;
+                    const perMemberPackaging = getPerMemberPackagingGrams();
+                    const memberCount = members.length;
+
+                    // 构建Excel XML（使用正确的XML命名空间）
+                    let xml = '<?xml version="1.0"?>\n';
+                    xml += '<?mso-application progid="Excel.Sheet"?>\n';
+                    xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"\n';
+                    xml += ' xmlns:o="urn:schemas-microsoft-com:office:office"\n';
+                    xml += ' xmlns:x="urn:schemas-microsoft-com:office:excel"\n';
+                    xml += ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"\n';
+                    xml += ' xmlns:html="http://www.w3.org/TR/REC-html40">\n';
+
+                    // 样式
+                    xml += '<Styles>\n';
+                    xml += '  <Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Center"/><Font ss:FontName="微软雅黑" ss:Size="11"/></Style>\n';
+                    xml += '  <Style ss:ID="Header"><Font ss:Bold="1" ss:Color="#FFFFFF" ss:FontName="微软雅黑"/><Interior ss:Color="#1E3A5F" ss:Pattern="Solid"/><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>\n';
+                    xml += '  <Style ss:ID="Data"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/></Style>\n';
+                    xml += '  <Style ss:ID="Amount"><NumberFormat ss:Format="#,##0.00"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/></Style>\n';
+                    xml += '  <Style ss:ID="Grams"><NumberFormat ss:Format="0.0"/><Alignment ss:Horizontal="Right" ss:Vertical="Center"/></Style>\n';
+                    xml += '</Styles>\n';
+
+                    // === Sheet 1: 谷子类型库 ===
+                    xml += '<Worksheet ss:Name="谷子类型库">\n';
+                    xml += '<Table ss:DefaultRowHeight="22">\n';
+                    xml += '<Column ss:Width="150"/><Column ss:Width="100"/>\n';
+                    xml += '<Row ss:Height="25">';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">谷子类型名称</Data></Cell>';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">单位克重(g)</Data></Cell>';
+                    xml += '</Row>\n';
+
+                    grainTypes.forEach(type => {
+                        xml += '<Row>';
+                        xml += `<Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(type.name)}</Data></Cell>`;
+                        xml += `<Cell ss:StyleID="Data"><Data ss:Type="Number">${type.weightPerUnit}</Data></Cell>`;
+                        xml += '</Row>\n';
+                    });
+                    xml += '</Table>\n</Worksheet>\n';
+
+                    // === Sheet 2: 包装总克重 ===
+                    xml += '<Worksheet ss:Name="包装总克重">\n';
+                    xml += '<Table ss:DefaultRowHeight="22">\n';
+                    xml += '<Column ss:Width="150"/><Column ss:Width="100"/>\n';
+                    xml += '<Row ss:Height="25">';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">项目</Data></Cell>';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">数值</Data></Cell>';
+                    xml += '</Row>\n';
+                    xml += '<Row>';
+                    xml += '<Cell ss:StyleID="Data"><Data ss:Type="String">包装总克重(g)</Data></Cell>';
+                    xml += `<Cell ss:StyleID="Data"><Data ss:Type="Number">${totalPackagingGrams}</Data></Cell>`;
+                    xml += '</Row>\n';
+                    xml += '</Table>\n</Worksheet>\n';
+
+                    // === Sheet 3: 分摊明细 ===
+                    xml += '<Worksheet ss:Name="分摊明细">\n';
+                    xml += '<Table ss:DefaultRowHeight="22">\n';
+
+                    const maxGrainItems = Math.max(1, ...members.map(m => m.grainItems.length));
+                    const totalCols = 1 + maxGrainItems * 3 + 4;
+
+                    // 列宽
+                    xml += '<Column ss:Width="80"/>';
+                    for (let i = 0; i < maxGrainItems; i++) {
+                        xml += '<Column ss:Width="100"/>';
+                        xml += '<Column ss:Width="60"/>';
+                        xml += '<Column ss:Width="80"/>';
+                    }
+                    xml += '<Column ss:Width="100"/>';
+                    xml += '<Column ss:Width="100"/>';
+                    xml += '<Column ss:Width="100"/>';
+                    xml += '<Column ss:Width="100"/>';
+
+                    // 表头
+                    xml += '<Row ss:Height="25">';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">姓名</Data></Cell>';
+                    for (let i = 0; i < maxGrainItems; i++) {
+                        xml += `<Cell ss:StyleID="Header"><Data ss:Type="String">谷子类型${i + 1}</Data></Cell>`;
+                        xml += `<Cell ss:StyleID="Header"><Data ss:Type="String">数量${i + 1}</Data></Cell>`;
+                        xml += `<Cell ss:StyleID="Header"><Data ss:Type="String">克重${i + 1}</Data></Cell>`;
+                    }
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">谷子总克重(g)</Data></Cell>';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">包装克重(g)</Data></Cell>';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">总克重(g)</Data></Cell>';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">应摊运费</Data></Cell>';
+                    xml += '</Row>\n';
+
+                    // 数据行
+                    members.forEach((member, mIdx) => {
+                        const rowNum = mIdx + 2;
+                        xml += '<Row>';
+                        xml += `<Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(member.name)}</Data></Cell>`;
+
+                        member.grainItems.forEach((item, gIdx) => {
+                            const typeName = grainTypes.find(t => t.id === item.typeId)?.name || '';
+                            const typeCol = getColumnLetter(2 + gIdx * 3);
+                            const qtyCol = getColumnLetter(3 + gIdx * 3);
+
+                            xml += `<Cell ss:StyleID="Data"><Data ss:Type="String">${escapeXml(typeName)}</Data></Cell>`;
+                            xml += `<Cell ss:StyleID="Data"><Data ss:Type="Number">${item.quantity}</Data></Cell>`;
+                            xml += `<Cell ss:StyleID="Data" ss:Formula="=VLOOKUP(${typeCol}${rowNum},谷子类型库!R2C1:R${grainTypes.length + 2}C2,2,FALSE)*${qtyCol}${rowNum}"><Data ss:Type="Number">0</Data></Cell>`;
+                        });
+
+                        for (let i = member.grainItems.length; i < maxGrainItems; i++) {
+                            xml += '<Cell ss:StyleID="Data"><Data ss:Type="String"></Data></Cell>';
+                            xml += '<Cell ss:StyleID="Data"><Data ss:Type="Number">0</Data></Cell>';
+                            xml += '<Cell ss:StyleID="Data"><Data ss:Type="Number">0</Data></Cell>';
+                        }
+
+                        // 谷子总克重
+                        const grainWeightCols = [];
+                        for (let i = 0; i < maxGrainItems; i++) {
+                            grainWeightCols.push(getColumnLetter(4 + i * 3));
+                        }
+                        const grainTotalCol = getColumnLetter(2 + maxGrainItems * 3);
+                        const grainSumFormula = grainWeightCols.map(col => `${col}${rowNum}`).join('+');
+                        xml += `<Cell ss:StyleID="Grams" ss:Formula="=${grainSumFormula}"><Data ss:Type="Number">0</Data></Cell>`;
+
+                        // 包装克重
+                        const packCol = getColumnLetter(3 + maxGrainItems * 3);
+                        xml += `<Cell ss:StyleID="Grams" ss:Formula="=包装总克重!R2C2/${memberCount}"><Data ss:Type="Number">${perMemberPackaging.toFixed(1)}</Data></Cell>`;
+
+                        // 总克重
+                        const totalGramsCol = getColumnLetter(4 + maxGrainItems * 3);
+                        xml += `<Cell ss:StyleID="Grams" ss:Formula="=${grainTotalCol}${rowNum}+${packCol}${rowNum}"><Data ss:Type="Number">0</Data></Cell>`;
+
+                        // 应摊运费
+                        const amountCol = getColumnLetter(5 + maxGrainItems * 3);
+                        xml += `<Cell ss:StyleID="Amount" ss:Formula="=${totalGramsCol}${rowNum}/SUM(${totalGramsCol}R2C${totalGramsCol}:R${memberCount + 1}C${totalGramsCol})*R1C2"><Data ss:Type="Number">0</Data></Cell>`;
+
+                        xml += '</Row>\n';
+                    });
+
+                    // 汇总行
+                    const grainTotalColFinal = getColumnLetter(2 + maxGrainItems * 3);
+                    const packColFinal = getColumnLetter(3 + maxGrainItems * 3);
+                    const totalGramsColFinal = getColumnLetter(4 + maxGrainItems * 3);
+                    const amountColFinal = getColumnLetter(5 + maxGrainItems * 3);
+
+                    xml += '<Row>';
+                    xml += '<Cell ss:StyleID="Header"><Data ss:Type="String">合计</Data></Cell>';
+                    for (let i = 0; i < maxGrainItems * 3; i++) {
+                        xml += '<Cell ss:StyleID="Data"><Data ss:Type="String"></Data></Cell>';
+                    }
+                    xml += `<Cell ss:StyleID="Grams" ss:Formula="=SUM(${grainTotalColFinal}2:${grainTotalColFinal}${memberCount + 1})"><Data ss:Type="Number">0</Data></Cell>`;
+                    xml += `<Cell ss:StyleID="Grams"><Data ss:Type="Number">${totalPackagingGrams}</Data></Cell>`;
+                    xml += `<Cell ss:StyleID="Grams" ss:Formula="=SUM(${totalGramsColFinal}2:${totalGramsColFinal}${memberCount + 1})"><Data ss:Type="Number">0</Data></Cell>`;
+                    xml += `<Cell ss:StyleID="Amount" ss:Formula="=SUM(${amountColFinal}2:${amountColFinal}${memberCount + 1})"><Data ss:Type="Number">0</Data></Cell>`;
+                    xml += '</Row>\n';
+
+                    xml += '</Table>\n</Worksheet>\n';
+                    xml += '</Workbook>';
+
+                    // 创建Blob并下载（使用application/vnd.ms-excel确保兼容性）
+                    const blob = new Blob(['\ufeff' + xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `国际计算器_${new Date().toISOString().slice(0,10)}.xls`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+                    showToast('✅ Excel文件导出成功！');
+                } catch (err) {
+                    console.error('导出失败:', err);
+                    showError('导出失败: ' + err.message);
+                }
+            }
+
+            function getColumnLetter(colNum) {
+                let dividend = colNum;
+                let columnName = '';
+                let modulo;
+                while (dividend > 0) {
+                    modulo = (dividend - 1) % 26;
+                    columnName = String.fromCharCode(65 + modulo) + columnName;
+                    dividend = Math.floor((dividend - modulo) / 26);
+                }
+                return columnName;
+            }
+
+            function escapeXml(str) {
+                if (typeof str !== 'string') return '';
+                return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+            }
+
+            // ---------- 初始化 ----------
+            function initializeSample() {
+                totalShippingInput.value = '300.00';
+                totalPackagingGramsInput.value = '245';
+                currencySymbolInput.value = '€';
+                renderGrainTypes();
+                renderMemberTable();
+                calculateAndDisplay();
+            }
+
+            // ---------- 事件绑定 ----------
+            addGrainTypeBtn.addEventListener('click', () => addGrainType());
+            addMemberBtn.addEventListener('click', () => addMember());
+            calculateBtn.addEventListener('click', calculateAndDisplay);
+            exportBtn.addEventListener('click', exportToExcel);
+
+            totalShippingInput.addEventListener('input', () => updateSummaryDisplay());
+            totalPackagingGramsInput.addEventListener('input', () => {
+                renderMemberTable();
+                updateSummaryDisplay();
+            });
+            currencySymbolInput.addEventListener('input', () => {
+                updateCurrencyBadges();
+                updateSummaryDisplay();
+            });
+
+            window.addEventListener('DOMContentLoaded', initializeSample);
+        })();
     </script>
 </body>
 </html>
