@@ -118,6 +118,12 @@
             flex: 1;
             min-width: 130px;
         }
+        .template-hint {
+            font-size: 0.75rem;
+            color: #8b9eb0;
+            margin-top: 0.5rem;
+            line-height: 1.5;
+        }
 
         .grain-types-container { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.6rem 0; }
         .grain-type-card {
@@ -281,6 +287,9 @@
                     <button class="btn btn-outline">📤 导入模板</button>
                     <input type="file" id="importTemplateInput" accept=".xlsx,.xls">
                 </div>
+            </div>
+            <div class="template-hint">
+                💡 模板只需填：运费、包装克重、谷子种类+克重、成员名单。导入后在网页内部分配谷子。
             </div>
             <div id="importStatus" class="import-status"></div>
         </div>
@@ -649,25 +658,18 @@
                 const totalCombinedGrams = totalGrainGrams + totalPackagingGrams;
                 const perGramPrice = totalCombinedGrams > 0 ? shippingTotal / totalCombinedGrams : 0;
                 
-                // 构建单Sheet数据
                 const data = [];
-                
-                // ---- 第一部分：设置 ----
                 data.push(['【设置】', '', '', '']);
                 data.push(['国际运费总价', shippingTotal, symbol, '']);
                 data.push(['币种', symbol, '', '']);
                 data.push(['包装总克重(g)', totalPackagingGrams, '', '']);
                 data.push(['', '', '', '']);
-                
-                // ---- 第二部分：谷子类型库 ----
                 data.push(['【谷子类型库】', '', '', '']);
                 data.push(['谷子类型名称', '单个克重(g)', '', '']);
                 grainTypes.forEach(t => {
                     data.push([t.name, t.weightPerUnit, '', '']);
                 });
                 data.push(['', '', '', '']);
-                
-                // ---- 第三部分：成员明细（每个谷子项占一行） ----
                 data.push(['【成员明细】', '', '', '', '', '']);
                 data.push(['姓名', '谷子类型', '数量', '克重(g)', '总克重(g)', '应摊运费']);
                 
@@ -687,14 +689,7 @@
                             const itemGrams = typeWeight * qty;
                             
                             if (idx === 0) {
-                                data.push([
-                                    member.name,
-                                    typeName,
-                                    qty,
-                                    itemGrams.toFixed(1),
-                                    totalGrams.toFixed(1),
-                                    amount.toFixed(2)
-                                ]);
+                                data.push([member.name, typeName, qty, itemGrams.toFixed(1), totalGrams.toFixed(1), amount.toFixed(2)]);
                             } else {
                                 data.push(['', typeName, qty, itemGrams.toFixed(1), '', '']);
                             }
@@ -702,16 +697,12 @@
                     }
                 });
                 
-                // 合计行
                 data.push(['合计', '', '', totalGrainGrams.toFixed(1), totalCombinedGrams.toFixed(1), shippingTotal.toFixed(2)]);
                 data.push(['', '', '', '', '', '']);
                 data.push(['说明：', '每位成员应摊运费 = (个人谷子总克重 + 个人包装克重) ÷ 全体总克重 × 运费总价', '', '', '', '']);
-                data.push(['', '每位成员包装克重 = 包装总克重 ÷ 成员数', '', '', '', '']);
                 
                 const ws = XLSX.utils.aoa_to_sheet(data);
-                ws['!cols'] = [
-                    { wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 14 }
-                ];
+                ws['!cols'] = [{ wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 12 }, { wch: 14 }, { wch: 14 }];
                 
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, '国际计算器');
@@ -727,7 +718,7 @@
             }
         }
 
-        // ==================== 下载单Sheet简化模板 ====================
+        // ==================== 下载极简模板 ====================
         function downloadTemplate() {
             try {
                 if (typeof XLSX === 'undefined') {
@@ -735,59 +726,53 @@
                     return;
                 }
                 
-                // 单Sheet模板：从上到下依次为 设置 → 谷子类型 → 成员
+                // 极简单Sheet模板：只需要填4部分
                 const data = [];
                 
-                // ===== 第一部分：设置 =====
-                data.push(['【① 设置】', '', '', '']);
-                data.push(['项目', '值', '说明', '']);
-                data.push(['国际运费总价', 300, '填数字', '']);
-                data.push(['币种', '¥', '填 ¥ 或 ￥', '']);
-                data.push(['包装总克重(g)', 245, '所有包装合计克重', '']);
-                data.push(['', '', '', '']);
-                data.push(['', '', '', '']);
+                // ① 设置
+                data.push(['【① 设置】', '', '']);
+                data.push(['项目', '值', '说明']);
+                data.push(['国际运费总价', 300, '填数字']);
+                data.push(['币种', '¥', '填 ¥ 或 ￥']);
+                data.push(['包装总克重(g)', 245, '所有包装合计']);
+                data.push(['', '', '']);
+                data.push(['', '', '']);
                 
-                // ===== 第二部分：谷子类型库 =====
-                data.push(['【② 谷子类型库】', '', '', '']);
-                data.push(['谷子类型名称', '单个克重(g)', '说明', '']);
-                data.push(['普通谷子', 50, '同类型只填一行', '']);
-                data.push(['大颗粒谷子', 80, '名称可自定义', '']);
-                data.push(['混合坚果', 120, '不需要的行留空', '']);
-                data.push(['', '', '', '']);
-                data.push(['', '', '', '']);
+                // ② 谷子类型库
+                data.push(['【② 谷子类型库】', '', '']);
+                data.push(['谷子类型名称', '单个克重(g)', '说明']);
+                data.push(['普通谷子', 50, '同类型只填一行']);
+                data.push(['大颗粒谷子', 80, '名称可自定义']);
+                data.push(['混合坚果', 120, '不需要的行留空']);
+                data.push(['', '', '']);
+                data.push(['', '', '']);
                 
-                // ===== 第三部分：成员明细 =====
-                data.push(['【③ 成员明细】', '', '', '', '', '']);
-                data.push(['姓名', '谷子类型', '数量', '克重(g)', '总克重(g)', '应摊运费']);
-                data.push(['Alice', '普通谷子', 3, 150, '', '']);
-                data.push(['Alice', '大颗粒谷子', 1, 80, '', '']);
-                data.push(['Bob', '大颗粒谷子', 2, 160, '', '']);
-                data.push(['Bob', '混合坚果', 1, 120, '', '']);
-                data.push(['Charlie', '普通谷子', 5, 250, '', '']);
-                data.push(['Charlie', '混合坚果', 2, 240, '', '']);
-                data.push(['', '', '', '', '', '']);
-                data.push(['', '', '', '', '', '']);
-                data.push(['', '', '', '', '', '']);
-                data.push(['', '', '', '', '', '']);
-                data.push(['', '', '', '', '', '']);
-                data.push(['', '', '', '', '', '']);
-                data.push(['填写说明：', '', '', '', '', '']);
-                data.push(['1. 同一个人的多行会自动合并计算', '', '', '', '', '']);
-                data.push(['2. 谷子类型必须和②中的名称一致', '', '', '', '', '']);
-                data.push(['3. 数量填数字，如 3 或 2.5', '', '', '', '', '']);
-                data.push(['4. 克重列和总克重列可留空，导入后自动计算', '', '', '', '', '']);
+                // ③ 成员名单（只需名字）
+                data.push(['【③ 成员名单】', '', '']);
+                data.push(['姓名', '', '']);
+                data.push(['Alice', '', '']);
+                data.push(['Bob', '', '']);
+                data.push(['Charlie', '', '']);
+                data.push(['', '', '']);
+                data.push(['', '', '']);
+                data.push(['', '', '']);
+                data.push(['', '', '']);
+                data.push(['', '', '']);
+                data.push(['', '', '']);
+                data.push(['填写说明：', '', '']);
+                data.push(['1. 只需填姓名，导入后在网页里分配每个人吃的谷子', '', '']);
+                data.push(['2. 谷子类型必须和②中的名称一致', '', '']);
+                data.push(['3. 运费、包装克重填在①中', '', '']);
                 
                 const ws = XLSX.utils.aoa_to_sheet(data);
-                ws['!cols'] = [
-                    { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }
-                ];
+                ws['!cols'] = [{ wch: 20 }, { wch: 18 }, { wch: 28 }];
                 
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, ws, '国际计算器模板');
                 
                 const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
                 const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-                downloadBlob(blob, `国际计算器_单表模板_${new Date().toISOString().slice(0,10)}.xlsx`);
+                downloadBlob(blob, `国际计算器_模板_${new Date().toISOString().slice(0,10)}.xlsx`);
                 showToast('✅ 模板下载成功！');
             } catch (err) {
                 console.error('模板下载错误:', err);
@@ -795,7 +780,7 @@
             }
         }
 
-        // ==================== 导入单Sheet模板 ====================
+        // ==================== 导入极简模板 ====================
         function importTemplate(file) {
             if (typeof XLSX === 'undefined') {
                 showImportStatus('❌ 库加载失败，请检查网络', 'error');
@@ -808,44 +793,34 @@
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
                     
-                    // 获取第一个工作表
                     const sheetName = workbook.SheetNames[0];
                     const sheet = workbook.Sheets[sheetName];
                     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
                     
-                    // ===== 解析变量 =====
                     let shippingTotal = 300;
                     let packagingTotal = 245;
                     let currency = '¥';
                     let newGrainTypes = [];
-                    let newMembers = [];
+                    let memberNames = [];
                     
-                    // 当前解析区域: 'settings' | 'grainTypes' | 'members' | 'none'
                     let currentSection = 'none';
-                    
-                    // 成员合并Map
-                    const memberMap = new Map();
                     
                     for (let i = 0; i < rows.length; i++) {
                         const row = rows[i];
                         if (!row || row.length === 0) continue;
                         const firstCell = row[0] ? String(row[0]).trim() : '';
+                        if (!firstCell) continue;
                         
-                        // === 检测区域切换 ===
-                        if (firstCell.includes('① 设置') || firstCell.includes('设置') && firstCell.startsWith('【')) {
-                            currentSection = 'settings';
-                            continue;
-                        }
-                        if (firstCell.includes('② 谷子类型') || (firstCell.includes('谷子类型') && firstCell.startsWith('【'))) {
-                            currentSection = 'grainTypes';
-                            continue;
-                        }
-                        if (firstCell.includes('③ 成员') || (firstCell.includes('成员明细') && firstCell.startsWith('【'))) {
-                            currentSection = 'members';
-                            continue;
-                        }
+                        // 检测区域切换
+                        if (firstCell.includes('① 设置')) { currentSection = 'settings'; continue; }
+                        if (firstCell.includes('② 谷子类型')) { currentSection = 'grainTypes'; continue; }
+                        if (firstCell.includes('③ 成员')) { currentSection = 'members'; continue; }
                         
-                        // === 根据区域解析 ===
+                        // 跳过说明行
+                        if (firstCell.startsWith('填写说明') || firstCell.startsWith('1.') || firstCell.startsWith('2.') || firstCell.startsWith('3.') || firstCell.startsWith('4.')) continue;
+                        if (firstCell === '项目' || firstCell === '谷子类型名称' || firstCell === '姓名' || firstCell === '说明') continue;
+                        
+                        // === 设置区域 ===
                         if (currentSection === 'settings') {
                             if (firstCell === '国际运费总价' && row[1] !== undefined) {
                                 shippingTotal = parseFloat(row[1]) || 0;
@@ -859,11 +834,8 @@
                             }
                         }
                         
+                        // === 谷子类型区域 ===
                         if (currentSection === 'grainTypes') {
-                            // 跳过表头
-                            if (firstCell === '谷子类型名称' || firstCell.includes('说明')) continue;
-                            if (firstCell === '' || firstCell.startsWith('1.') || firstCell.startsWith('2.') || firstCell.startsWith('3.') || firstCell.startsWith('4.')) continue;
-                            
                             const weight = parseFloat(row[1]);
                             if (firstCell && !isNaN(weight)) {
                                 newGrainTypes.push({
@@ -874,73 +846,34 @@
                             }
                         }
                         
+                        // === 成员名单区域 ===
                         if (currentSection === 'members') {
-                            // 跳过表头
-                            if (firstCell === '姓名' || firstCell.includes('填写说明') || firstCell.startsWith('1.') || firstCell.startsWith('2.') || firstCell.startsWith('3.') || firstCell.startsWith('4.')) continue;
-                            if (firstCell === '合计' || firstCell === '') continue;
-                            
-                            const memberName = firstCell;
-                            const typeName = row[1] ? String(row[1]).trim() : '';
-                            const qty = parseFloat(row[2]) || 0;
-                            
-                            if (!memberName || !typeName || qty <= 0) continue;
-                            
-                            // 查找谷子类型
-                            let type = newGrainTypes.find(t => t.name === typeName);
-                            if (!type) {
-                                type = newGrainTypes.find(t => t.name.includes(typeName) || typeName.includes(t.name));
+                            // 只取姓名
+                            if (firstCell && firstCell !== '合计') {
+                                memberNames.push(firstCell);
                             }
-                            
-                            // 从克重列反推（如果有的话）
-                            const rowGrams = parseFloat(row[3]);
-                            if (!type && rowGrams && qty > 0) {
-                                // 用克重/数量反推单克重
-                                type = {
-                                    id: `gt${nextGrainTypeId++}`,
-                                    name: typeName,
-                                    weightPerUnit: Math.round((rowGrams / qty) * 100) / 100
-                                };
-                                newGrainTypes.push(type);
-                            }
-                            
-                            if (!type) {
-                                type = {
-                                    id: `gt${nextGrainTypeId++}`,
-                                    name: typeName,
-                                    weightPerUnit: 50 // 默认
-                                };
-                                newGrainTypes.push(type);
-                            }
-                            
-                            // 合并到成员
-                            if (!memberMap.has(memberName)) {
-                                memberMap.set(memberName, { name: memberName, items: [] });
-                            }
-                            memberMap.get(memberName).items.push({
-                                typeId: type.id,
-                                quantity: qty
-                            });
                         }
                     }
                     
-                    // ===== 验证 =====
+                    // 验证
                     if (newGrainTypes.length === 0) {
-                        showImportStatus('❌ 未找到谷子类型数据，请检查「② 谷子类型库」区域', 'error');
+                        showImportStatus('❌ 未找到谷子类型，请检查「② 谷子类型库」区域', 'error');
                         return;
                     }
-                    if (memberMap.size === 0) {
-                        showImportStatus('❌ 未找到成员数据，请检查「③ 成员明细」区域', 'error');
+                    if (memberNames.length === 0) {
+                        showImportStatus('❌ 未找到成员名单，请检查「③ 成员名单」区域', 'error');
                         return;
                     }
                     
-                    // ===== 应用 =====
+                    // 应用
                     grainTypes = newGrainTypes;
                     members = [];
-                    memberMap.forEach((m, name) => {
+                    memberNames.forEach(name => {
+                        // 每个成员初始给一个谷子项（第一个类型，数量1），方便用户直接调整
                         members.push({
                             id: `m${nextMemberId++}`,
                             name: name,
-                            grainItems: m.items
+                            grainItems: [{ typeId: grainTypes[0].id, quantity: 1 }]
                         });
                     });
                     
@@ -951,7 +884,7 @@
                     renderGrainTypes();
                     renderMemberTable();
                     
-                    showImportStatus(`✅ 导入成功！${members.length} 位成员、${grainTypes.length} 种谷子类型`, 'success');
+                    showImportStatus(`✅ 导入成功！${members.length} 位成员、${grainTypes.length} 种谷子类型。请在网页内为每位成员分配谷子。`, 'success');
                     showToast('✅ 模板导入成功！');
                     
                 } catch (err) {
