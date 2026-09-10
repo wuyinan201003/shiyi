@@ -591,16 +591,12 @@
             calculate();
         }
 
-        // ==================== 荣耀手机兼容的下载 ====================
-        // 通用下载函数，兼容荣耀/华为手机
+        // ==================== 兼容下载 ====================
         function downloadBlob(blob, fileName) {
-            // 方法1: msSaveBlob（IE/旧Edge）
             if (window.navigator && window.navigator.msSaveBlob) {
                 window.navigator.msSaveBlob(blob, fileName);
                 return true;
             }
-            
-            // 方法2: 使用a标签下载（最兼容，包括荣耀手机）
             try {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -609,7 +605,6 @@
                 a.style.display = 'none';
                 document.body.appendChild(a);
                 a.click();
-                // 荣耀手机需要延迟释放
                 setTimeout(() => {
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
@@ -618,8 +613,6 @@
             } catch (e) {
                 console.error('a标签下载失败:', e);
             }
-            
-            // 方法3: 使用FileReader转DataURL（荣耀手机备选）
             try {
                 const reader = new FileReader();
                 reader.onload = function() {
@@ -630,16 +623,13 @@
                     a.style.display = 'none';
                     document.body.appendChild(a);
                     a.click();
-                    setTimeout(() => {
-                        document.body.removeChild(a);
-                    }, 3000);
+                    setTimeout(() => { document.body.removeChild(a); }, 3000);
                 };
                 reader.readAsDataURL(blob);
                 return true;
             } catch (e) {
                 console.error('FileReader下载失败:', e);
             }
-            
             return false;
         }
 
@@ -647,12 +637,10 @@
         function exportToExcel() {
             try {
                 calculate();
-                
                 if (typeof XLSX === 'undefined') {
                     showToast('❌ 库加载失败，请检查网络', 'error');
                     return;
                 }
-                
                 const symbol = document.getElementById('currencySymbol').value || '¥';
                 const shippingTotal = parseFloat(document.getElementById('totalShippingAmount').value) || 0;
                 const totalPackagingGrams = parseFloat(document.getElementById('totalPackagingGrams').value) || 0;
@@ -660,7 +648,7 @@
                 
                 const wb = XLSX.utils.book_new();
                 
-                // === Sheet 1: 分摊明细 ===
+                // Sheet 1: 分摊明细
                 const detailData = [];
                 const maxGrainItems = Math.max(1, ...members.map(m => m.grainItems.length));
                 const headers = ['姓名'];
@@ -673,8 +661,8 @@
                 members.forEach(member => {
                     const grainGrams = getMemberGrainGrams(member);
                     const totalGrams = grainGrams + perMemberPackaging;
-                    const amount = totalGrams * (shippingTotal / (members.reduce((s, m) => s + getMemberGrainGrams(m) + perMemberPackaging, 0)));
-                    
+                    const totalAll = members.reduce((s, m) => s + getMemberGrainGrams(m) + perMemberPackaging, 0);
+                    const amount = totalAll > 0 ? totalGrams * (shippingTotal / totalAll) : 0;
                     const row = [member.name];
                     member.grainItems.forEach(item => {
                         const type = grainTypes.find(t => t.id === item.typeId);
@@ -707,51 +695,37 @@
                 );
                 detailData.push(totalRow);
                 
-                const detailWS = XLSX.utils.aoa_to_sheet(detailData);
-                XLSX.utils.book_append_sheet(wb, detailWS, '分摊明细');
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(detailData), '分摊明细');
                 
-                // === Sheet 2: 谷子类型库 ===
+                // Sheet 2: 谷子类型库
                 const grainTypeData = [['谷子类型名称', '单位克重(g)']];
-                grainTypes.forEach(type => {
-                    grainTypeData.push([type.name, type.weightPerUnit]);
-                });
-                const grainTypeWS = XLSX.utils.aoa_to_sheet(grainTypeData);
-                XLSX.utils.book_append_sheet(wb, grainTypeWS, '谷子类型库');
+                grainTypes.forEach(type => grainTypeData.push([type.name, type.weightPerUnit]));
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(grainTypeData), '谷子类型库');
                 
-                // === Sheet 3: 汇总信息 ===
+                // Sheet 3: 汇总信息
                 const summaryData = [
                     ['国际运费总价', shippingTotal, symbol],
                     ['包装总克重(g)', totalPackagingGrams, ''],
                     ['谷子总克重(g)', Math.round(totalGrainGrams * 10) / 10, ''],
                     ['总克重合计(g)', Math.round(totalCombinedGrams * 10) / 10, ''],
-                    ['每克单价', Math.round((shippingTotal / totalCombinedGrams) * 1000) / 1000, symbol + '/g'],
+                    ['每克单价', Math.round((totalCombinedGrams > 0 ? shippingTotal / totalCombinedGrams : 0) * 1000) / 1000, symbol + '/g'],
                     ['成员数量', members.length, ''],
                     ['每位成员包装克重(g)', Math.round(perMemberPackaging * 10) / 10, '']
                 ];
-                const summaryWS = XLSX.utils.aoa_to_sheet(summaryData);
-                XLSX.utils.book_append_sheet(wb, summaryWS, '汇总信息');
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryData), '汇总信息');
                 
-                // 生成XLSX
                 const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
                 const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-                
-                const fileName = `国际计算器_${new Date().toISOString().slice(0,10)}.xlsx`;
-                
-                // 使用兼容函数下载
-                const success = downloadBlob(blob, fileName);
-                
-                if (success) {
-                    showToast('✅ XLSX导出成功！');
-                } else {
-                    showToast('❌ 导出失败，请尝试其他浏览器', 'error');
-                }
+                const success = downloadBlob(blob, `国际计算器_${new Date().toISOString().slice(0,10)}.xlsx`);
+                if (success) showToast('✅ XLSX导出成功！');
+                else showToast('❌ 导出失败，请尝试其他浏览器', 'error');
             } catch (err) {
                 console.error('导出错误:', err);
                 showToast('❌ 导出失败: ' + err.message, 'error');
             }
         }
 
-        // ==================== 下载模板 ====================
+        // ==================== 下载简化模板 ====================
         function downloadTemplate() {
             try {
                 if (typeof XLSX === 'undefined') {
@@ -761,75 +735,77 @@
                 
                 const wb = XLSX.utils.book_new();
                 
-                // === Sheet 1: 分摊明细模板 ===
-                // 使用示例数据展示格式
-                const templateDetail = [
-                    ['姓名', '谷子类型1', '数量1', '克重1', '谷子类型2', '数量2', '克重2', '谷子类型3', '数量3', '克重3', '谷子总克重(g)', '包装克重(g)', '总克重(g)', '应摊运费'],
-                    ['Alice', '普通谷子', 3, 150, '大颗粒谷子', 1, 80, '', '', '', 230, 81.7, 311.7, 0],
-                    ['Bob', '大颗粒谷子', 2, 160, '混合坚果', 1, 120, '', '', '', 280, 81.7, 361.7, 0],
-                    ['Charlie', '普通谷子', 5, 250, '混合坚果', 2, 240, '', '', '', 490, 81.7, 571.7, 0],
-                    ['', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-                    ['', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-                    ['', '', '', '', '', '', '', '', '', '', '', '', '', '']
+                // ===== Sheet 1: 设置（只填3个值）=====
+                const settingsData = [
+                    ['项目', '值', '说明'],
+                    ['国际运费总价', 300, '填数字，如 300'],
+                    ['币种', '¥', '填 ¥ 或 ￥'],
+                    ['包装总克重(g)', 245, '所有包装合计克重'],
+                    ['', '', ''],
+                    ['提示：', '填完这个表后，请去「谷子类型」和「成员」表继续填写', ''],
+                    ['', '', ''],
+                    ['示例：', '', ''],
+                    ['如果你有3个成员，包装总重245g', '', ''],
+                    ['那每人自动分得 245/3 = 81.7g', '', '']
                 ];
-                const detailWS = XLSX.utils.aoa_to_sheet(templateDetail);
+                const settingsWS = XLSX.utils.aoa_to_sheet(settingsData);
+                settingsWS['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 40 }];
+                XLSX.utils.book_append_sheet(wb, settingsWS, '① 设置');
                 
-                // 设置列宽
-                detailWS['!cols'] = [
-                    { wch: 12 }, { wch: 15 }, { wch: 8 }, { wch: 8 },
-                    { wch: 15 }, { wch: 8 }, { wch: 8 },
-                    { wch: 15 }, { wch: 8 }, { wch: 8 },
-                    { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 }
-                ];
-                
-                XLSX.utils.book_append_sheet(wb, detailWS, '分摊明细');
-                
-                // === Sheet 2: 谷子类型库模板 ===
-                const templateGrainTypes = [
-                    ['谷子类型名称', '单位克重(g)'],
+                // ===== Sheet 2: 谷子类型（只有2列）=====
+                const grainTypeData = [
+                    ['谷子类型名称', '单个克重(g)'],
                     ['普通谷子', 50],
                     ['大颗粒谷子', 80],
                     ['混合坚果', 120],
                     ['', ''],
                     ['', ''],
                     ['', ''],
-                    ['', '']
+                    ['', ''],
+                    ['填写说明：', ''],
+                    ['1. 第一列填谷子名称（可自定义）', ''],
+                    ['2. 第二列填单个谷子的克重', ''],
+                    ['3. 同类型谷子只测一次，填一行即可', ''],
+                    ['4. 不需要的行留空即可', '']
                 ];
-                const grainTypeWS = XLSX.utils.aoa_to_sheet(templateGrainTypes);
-                grainTypeWS['!cols'] = [{ wch: 18 }, { wch: 14 }];
-                XLSX.utils.book_append_sheet(wb, grainTypeWS, '谷子类型库');
+                const grainTypeWS = XLSX.utils.aoa_to_sheet(grainTypeData);
+                grainTypeWS['!cols'] = [{ wch: 22 }, { wch: 15 }];
+                XLSX.utils.book_append_sheet(wb, grainTypeWS, '② 谷子类型');
                 
-                // === Sheet 3: 汇总信息模板 ===
-                const templateSummary = [
-                    ['国际运费总价', 300, '¥'],
-                    ['包装总克重(g)', 245, ''],
-                    ['币种', '¥', '日元(¥) / 人民币(￥)'],
+                // ===== Sheet 3: 成员（3列，每人可多行）=====
+                const memberData = [
+                    ['姓名', '谷子类型', '数量'],
+                    ['Alice', '普通谷子', 3],
+                    ['Alice', '大颗粒谷子', 1],
+                    ['Bob', '大颗粒谷子', 2],
+                    ['Bob', '混合坚果', 1],
+                    ['Charlie', '普通谷子', 5],
+                    ['Charlie', '混合坚果', 2],
                     ['', '', ''],
-                    ['说明：', '', ''],
-                    ['1. 请先填写「谷子类型库」中的名称和单位克重', '', ''],
-                    ['2. 然后在「分摊明细」中填写成员姓名和所吃谷子', '', ''],
-                    ['3. 修改完成后，将文件导入计算器', '', ''],
-                    ['4. 导入后请点击「计算」查看结果', '', '']
+                    ['', '', ''],
+                    ['', '', ''],
+                    ['', '', ''],
+                    ['填写说明：', '', ''],
+                    ['1. 同一个人的多行会自动合并计算', '', ''],
+                    ['2. 谷子类型必须和「② 谷子类型」表中的名称一致', '', ''],
+                    ['3. 数量填数字，如 3 或 2.5', '', ''],
+                    ['4. 每个人的总克重 = 该成员所有行的(克重×数量)之和', '', '']
                 ];
-                const summaryWS = XLSX.utils.aoa_to_sheet(templateSummary);
-                summaryWS['!cols'] = [{ wch: 22 }, { wch: 12 }, { wch: 30 }];
-                XLSX.utils.book_append_sheet(wb, summaryWS, '汇总信息');
+                const memberWS = XLSX.utils.aoa_to_sheet(memberData);
+                memberWS['!cols'] = [{ wch: 15 }, { wch: 20 }, { wch: 12 }];
+                XLSX.utils.book_append_sheet(wb, memberWS, '③ 成员');
                 
-                // 生成并下载
                 const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
                 const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-                
-                const fileName = `国际计算器_模板_${new Date().toISOString().slice(0,10)}.xlsx`;
-                downloadBlob(blob, fileName);
-                
-                showToast('✅ 模板下载成功！请填写后导入');
+                downloadBlob(blob, `国际计算器_简化模板_${new Date().toISOString().slice(0,10)}.xlsx`);
+                showToast('✅ 简化模板下载成功！');
             } catch (err) {
                 console.error('模板下载错误:', err);
                 showToast('❌ 模板下载失败: ' + err.message, 'error');
             }
         }
 
-        // ==================== 导入模板 ====================
+        // ==================== 导入简化模板 ====================
         function importTemplate(file) {
             if (typeof XLSX === 'undefined') {
                 showImportStatus('❌ 库加载失败，请检查网络', 'error');
@@ -837,120 +813,122 @@
             }
             
             const reader = new FileReader();
-            
             reader.onload = function(e) {
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
                     
-                    // 1. 读取谷子类型库
-                    let newGrainTypes = [];
-                    const grainTypeSheet = workbook.Sheets['谷子类型库'];
-                    if (grainTypeSheet) {
-                        const grainTypeRows = XLSX.utils.sheet_to_json(grainTypeSheet, { header: 1 });
-                        // 跳过表头，读取数据行
-                        for (let i = 1; i < grainTypeRows.length; i++) {
-                            const row = grainTypeRows[i];
-                            if (row && row[0] && String(row[0]).trim() !== '') {
-                                newGrainTypes.push({
-                                    id: `gt${nextGrainTypeId++}`,
-                                    name: String(row[0]).trim(),
-                                    weightPerUnit: parseFloat(row[1]) || 0
-                                });
-                            }
-                        }
-                    }
-                    
-                    if (newGrainTypes.length === 0) {
-                        showImportStatus('❌ 未找到谷子类型数据，请检查「谷子类型库」工作表', 'error');
-                        return;
-                    }
-                    
-                    // 2. 读取汇总信息
-                    const summarySheet = workbook.Sheets['汇总信息'];
+                    // ===== 1. 读取设置 =====
                     let shippingTotal = 300;
                     let packagingTotal = 245;
                     let currency = '¥';
                     
-                    if (summarySheet) {
-                        const summaryRows = XLSX.utils.sheet_to_json(summarySheet, { header: 1 });
-                        summaryRows.forEach(row => {
-                            if (row && row[0]) {
-                                const key = String(row[0]).trim();
-                                if (key === '国际运费总价' && row[1] !== undefined) {
-                                    shippingTotal = parseFloat(row[1]) || 0;
-                                }
-                                if (key === '包装总克重(g)' && row[1] !== undefined) {
-                                    packagingTotal = parseFloat(row[1]) || 0;
-                                }
-                                if (key === '币种' && row[1] !== undefined) {
-                                    const val = String(row[1]).trim();
-                                    if (val === '￥' || val.includes('人民币')) currency = '￥';
-                                    else currency = '¥';
-                                }
+                    // 尝试多种可能的工作表名
+                    const settingsSheet = workbook.Sheets['① 设置'] || workbook.Sheets['设置'];
+                    if (settingsSheet) {
+                        const rows = XLSX.utils.sheet_to_json(settingsSheet, { header: 1 });
+                        rows.forEach(row => {
+                            if (!row || !row[0]) return;
+                            const key = String(row[0]).trim();
+                            if (key === '国际运费总价' && row[1] !== undefined) shippingTotal = parseFloat(row[1]) || 0;
+                            if (key === '包装总克重(g)' && row[1] !== undefined) packagingTotal = parseFloat(row[1]) || 0;
+                            if (key === '币种' && row[1] !== undefined) {
+                                const v = String(row[1]).trim();
+                                currency = (v === '￥' || v.includes('人民币')) ? '￥' : '¥';
                             }
                         });
                     }
                     
-                    // 3. 读取分摊明细
-                    const detailSheet = workbook.Sheets['分摊明细'];
-                    let newMembers = [];
-                    
-                    if (detailSheet) {
-                        const detailRows = XLSX.utils.sheet_to_json(detailSheet, { header: 1 });
-                        // 跳过表头
-                        for (let i = 1; i < detailRows.length; i++) {
-                            const row = detailRows[i];
-                            if (!row || !row[0] || String(row[0]).trim() === '' || String(row[0]).trim() === '合计') {
-                                continue;
-                            }
-                            
-                            const memberName = String(row[0]).trim();
-                            const grainItems = [];
-                            
-                            // 每3列为一组谷子项：类型、数量、克重
-                            for (let j = 1; j < row.length; j += 3) {
-                                const typeName = row[j] ? String(row[j]).trim() : '';
-                                const qty = parseFloat(row[j + 1]) || 0;
-                                
-                                if (typeName && qty > 0) {
-                                    // 查找或创建类型
-                                    let type = newGrainTypes.find(t => t.name === typeName);
-                                    if (!type) {
-                                        // 从克重列读取
-                                        const typeWeight = parseFloat(row[j + 2]) / qty;
-                                        type = {
-                                            id: `gt${nextGrainTypeId++}`,
-                                            name: typeName,
-                                            weightPerUnit: isNaN(typeWeight) ? 0 : Math.round(typeWeight * 100) / 100
-                                        };
-                                        newGrainTypes.push(type);
-                                    }
-                                    grainItems.push({
-                                        typeId: type.id,
-                                        quantity: qty
-                                    });
-                                }
-                            }
-                            
-                            if (grainItems.length > 0) {
-                                newMembers.push({
-                                    id: `m${nextMemberId++}`,
-                                    name: memberName,
-                                    grainItems: grainItems
-                                });
-                            }
+                    // ===== 2. 读取谷子类型 =====
+                    let newGrainTypes = [];
+                    const grainSheet = workbook.Sheets['② 谷子类型'] || workbook.Sheets['谷子类型'] || workbook.Sheets['谷子类型库'];
+                    if (grainSheet) {
+                        const rows = XLSX.utils.sheet_to_json(grainSheet, { header: 1 });
+                        for (let i = 1; i < rows.length; i++) {
+                            const row = rows[i];
+                            if (!row || !row[0]) continue;
+                            const name = String(row[0]).trim();
+                            // 跳过说明行
+                            if (name.startsWith('填写') || name.startsWith('1.') || name.startsWith('2.') || name.startsWith('3.') || name.startsWith('4.')) continue;
+                            if (!name) continue;
+                            const weight = parseFloat(row[1]);
+                            if (isNaN(weight)) continue;
+                            newGrainTypes.push({
+                                id: `gt${nextGrainTypeId++}`,
+                                name: name,
+                                weightPerUnit: weight
+                            });
                         }
                     }
                     
-                    // 4. 应用导入的数据
-                    if (newMembers.length === 0) {
-                        showImportStatus('❌ 未找到成员数据，请检查「分摊明细」工作表', 'error');
+                    if (newGrainTypes.length === 0) {
+                        showImportStatus('❌ 未找到谷子类型数据，请检查「② 谷子类型」工作表', 'error');
                         return;
                     }
                     
+                    // ===== 3. 读取成员（同一姓名多行自动合并）=====
+                    const memberSheet = workbook.Sheets['③ 成员'] || workbook.Sheets['成员'] || workbook.Sheets['分摊明细'];
+                    const memberMap = new Map(); // 姓名 -> { grainItems: [] }
+                    
+                    if (memberSheet) {
+                        const rows = XLSX.utils.sheet_to_json(memberSheet, { header: 1 });
+                        for (let i = 1; i < rows.length; i++) {
+                            const row = rows[i];
+                            if (!row || !row[0]) continue;
+                            const memberName = String(row[0]).trim();
+                            // 跳过说明行
+                            if (memberName.startsWith('填写') || memberName.startsWith('1.') || memberName.startsWith('2.') || memberName.startsWith('3.') || memberName.startsWith('4.') || memberName === '合计') continue;
+                            if (!memberName) continue;
+                            
+                            const typeName = row[1] ? String(row[1]).trim() : '';
+                            const qty = parseFloat(row[2]) || 0;
+                            
+                            if (!typeName || qty <= 0) continue;
+                            
+                            // 查找谷子类型（支持模糊匹配）
+                            let type = newGrainTypes.find(t => t.name === typeName);
+                            if (!type) {
+                                // 尝试模糊匹配
+                                type = newGrainTypes.find(t => t.name.includes(typeName) || typeName.includes(t.name));
+                            }
+                            
+                            if (!type) {
+                                // 如果类型不存在，自动创建（需要从其他行推断克重，但简化模板中克重列不在这里）
+                                // 这里我们创建一个默认克重
+                                type = {
+                                    id: `gt${nextGrainTypeId++}`,
+                                    name: typeName,
+                                    weightPerUnit: 50 // 默认值
+                                };
+                                newGrainTypes.push(type);
+                            }
+                            
+                            // 合并到成员
+                            if (!memberMap.has(memberName)) {
+                                memberMap.set(memberName, { name: memberName, items: [] });
+                            }
+                            memberMap.get(memberName).items.push({
+                                typeId: type.id,
+                                quantity: qty
+                            });
+                        }
+                    }
+                    
+                    if (memberMap.size === 0) {
+                        showImportStatus('❌ 未找到成员数据，请检查「③ 成员」工作表', 'error');
+                        return;
+                    }
+                    
+                    // ===== 4. 应用导入 =====
                     grainTypes = newGrainTypes;
-                    members = newMembers;
+                    members = [];
+                    memberMap.forEach((m, name) => {
+                        members.push({
+                            id: `m${nextMemberId++}`,
+                            name: name,
+                            grainItems: m.items
+                        });
+                    });
                     
                     document.getElementById('totalShippingAmount').value = shippingTotal;
                     document.getElementById('totalPackagingGrams').value = packagingTotal;
@@ -959,7 +937,7 @@
                     renderGrainTypes();
                     renderMemberTable();
                     
-                    showImportStatus('✅ 导入成功！共导入 ' + members.length + ' 位成员、' + grainTypes.length + ' 种谷子类型', 'success');
+                    showImportStatus(`✅ 导入成功！${members.length} 位成员、${grainTypes.length} 种谷子类型`, 'success');
                     showToast('✅ 模板导入成功！');
                     
                 } catch (err) {
@@ -967,11 +945,7 @@
                     showImportStatus('❌ 文件解析失败: ' + err.message, 'error');
                 }
             };
-            
-            reader.onerror = function() {
-                showImportStatus('❌ 文件读取失败', 'error');
-            };
-            
+            reader.onerror = () => showImportStatus('❌ 文件读取失败', 'error');
             reader.readAsArrayBuffer(file);
         }
 
@@ -992,19 +966,16 @@
             document.getElementById('exportBtn').addEventListener('click', exportToExcel);
             document.getElementById('downloadTemplateBtn').addEventListener('click', downloadTemplate);
             
-            // 导入模板
             document.getElementById('importTemplateInput').addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (file) {
                     importTemplate(file);
-                    e.target.value = ''; // 清空以便重复导入
+                    e.target.value = '';
                 }
             });
             
             document.getElementById('totalShippingAmount').addEventListener('input', calculate);
-            document.getElementById('totalPackagingGrams').addEventListener('input', () => {
-                renderMemberTable();
-            });
+            document.getElementById('totalPackagingGrams').addEventListener('input', () => renderMemberTable());
             document.getElementById('currencySymbol').addEventListener('change', calculate);
             
             renderGrainTypes();
