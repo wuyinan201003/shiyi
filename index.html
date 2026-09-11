@@ -197,7 +197,14 @@
             margin: 0.03rem 0;
         }
         .grain-select-item select { border: none; background: transparent; font-size: 0.7rem; padding: 0.05rem; }
-        .grain-select-item input[type="number"] { width: 30px; border: 1px solid #e2e8f0; border-radius: 3px; text-align: center; font-size: 0.7rem; padding: 0.05rem; }
+        .grain-select-item input[type="number"] {
+            width: 35px;
+            border: 1px solid #e2e8f0;
+            border-radius: 3px;
+            text-align: center;
+            font-size: 0.7rem;
+            padding: 0.05rem;
+        }
         .remove-btn { background: none; border: none; color: #b0c0d0; cursor: pointer; font-size: 0.9rem; padding: 0 0.1rem; }
 
         .amount-cell { font-weight: 700; color: var(--primary); text-align: right; }
@@ -278,7 +285,6 @@
     <div class="app-container">
         <h1>🌍 国际计算器</h1>
 
-        <!-- 模板功能区 -->
         <div class="template-section">
             <h3>📁 模板管理</h3>
             <div class="template-buttons">
@@ -524,13 +530,26 @@
                         calculate();
                     });
                     
+                    // ★ 数量输入框：改为整数步进 ★
                     const qtyInput = document.createElement('input');
                     qtyInput.type = 'number';
                     qtyInput.value = item.quantity;
-                    qtyInput.min = '0';
-                    qtyInput.step = '0.1';
+                    qtyInput.min = '1';        // 最小1个
+                    qtyInput.step = '1';       // 每次加减1
                     qtyInput.addEventListener('input', (e) => {
-                        members[mIdx].grainItems[gIdx].quantity = parseFloat(e.target.value) || 0;
+                        // 强制取整，避免小数
+                        let val = parseInt(e.target.value, 10);
+                        if (isNaN(val) || val < 1) val = 1;
+                        e.target.value = val;
+                        members[mIdx].grainItems[gIdx].quantity = val;
+                        calculate();
+                    });
+                    // 失去焦点时也做一次修正
+                    qtyInput.addEventListener('blur', (e) => {
+                        let val = parseInt(e.target.value, 10);
+                        if (isNaN(val) || val < 1) val = 1;
+                        e.target.value = val;
+                        members[mIdx].grainItems[gIdx].quantity = val;
                         calculate();
                     });
                     
@@ -685,7 +704,7 @@
                             const type = grainTypes.find(t => t.id === item.typeId);
                             const typeName = type ? type.name : '';
                             const typeWeight = type ? type.weightPerUnit : 0;
-                            const qty = parseFloat(item.quantity) || 0;
+                            const qty = parseInt(item.quantity, 10) || 0;
                             const itemGrams = typeWeight * qty;
                             
                             if (idx === 0) {
@@ -726,10 +745,7 @@
                     return;
                 }
                 
-                // 极简单Sheet模板：只需要填4部分
                 const data = [];
-                
-                // ① 设置
                 data.push(['【① 设置】', '', '']);
                 data.push(['项目', '值', '说明']);
                 data.push(['国际运费总价', 300, '填数字']);
@@ -737,8 +753,6 @@
                 data.push(['包装总克重(g)', 245, '所有包装合计']);
                 data.push(['', '', '']);
                 data.push(['', '', '']);
-                
-                // ② 谷子类型库
                 data.push(['【② 谷子类型库】', '', '']);
                 data.push(['谷子类型名称', '单个克重(g)', '说明']);
                 data.push(['普通谷子', 50, '同类型只填一行']);
@@ -746,8 +760,6 @@
                 data.push(['混合坚果', 120, '不需要的行留空']);
                 data.push(['', '', '']);
                 data.push(['', '', '']);
-                
-                // ③ 成员名单（只需名字）
                 data.push(['【③ 成员名单】', '', '']);
                 data.push(['姓名', '', '']);
                 data.push(['Alice', '', '']);
@@ -811,16 +823,13 @@
                         const firstCell = row[0] ? String(row[0]).trim() : '';
                         if (!firstCell) continue;
                         
-                        // 检测区域切换
                         if (firstCell.includes('① 设置')) { currentSection = 'settings'; continue; }
                         if (firstCell.includes('② 谷子类型')) { currentSection = 'grainTypes'; continue; }
                         if (firstCell.includes('③ 成员')) { currentSection = 'members'; continue; }
                         
-                        // 跳过说明行
                         if (firstCell.startsWith('填写说明') || firstCell.startsWith('1.') || firstCell.startsWith('2.') || firstCell.startsWith('3.') || firstCell.startsWith('4.')) continue;
                         if (firstCell === '项目' || firstCell === '谷子类型名称' || firstCell === '姓名' || firstCell === '说明') continue;
                         
-                        // === 设置区域 ===
                         if (currentSection === 'settings') {
                             if (firstCell === '国际运费总价' && row[1] !== undefined) {
                                 shippingTotal = parseFloat(row[1]) || 0;
@@ -834,7 +843,6 @@
                             }
                         }
                         
-                        // === 谷子类型区域 ===
                         if (currentSection === 'grainTypes') {
                             const weight = parseFloat(row[1]);
                             if (firstCell && !isNaN(weight)) {
@@ -846,16 +854,13 @@
                             }
                         }
                         
-                        // === 成员名单区域 ===
                         if (currentSection === 'members') {
-                            // 只取姓名
                             if (firstCell && firstCell !== '合计') {
                                 memberNames.push(firstCell);
                             }
                         }
                     }
                     
-                    // 验证
                     if (newGrainTypes.length === 0) {
                         showImportStatus('❌ 未找到谷子类型，请检查「② 谷子类型库」区域', 'error');
                         return;
@@ -865,11 +870,9 @@
                         return;
                     }
                     
-                    // 应用
                     grainTypes = newGrainTypes;
                     members = [];
                     memberNames.forEach(name => {
-                        // 每个成员初始给一个谷子项（第一个类型，数量1），方便用户直接调整
                         members.push({
                             id: `m${nextMemberId++}`,
                             name: name,
